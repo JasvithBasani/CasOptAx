@@ -63,9 +63,14 @@ class Linear_Optics:
                                                 [t_10, t_11]])
     return T
 
+  def get_MZI_phases(self, U):
+    raise NotImplementedError()
+
+  def set_MZI(self, U, alpha, beta):
+    raise NotImplementedError()
 
   @partial(jit, static_argnums = (0, ))
-  def clements(self, theta, phi, D, alpha, beta):
+  def clements_matrix(self, theta, phi, D, alpha, beta):
 
     r"""
     Differentiable clements matrix, to return a NxN unitary transformation
@@ -231,6 +236,10 @@ class Linear_Optics:
 
     return t, p, D
 
+  def set_clements(self, U, alpha, beta):
+    theta, phi, D = self.get_clements_phases(U)
+    U_out = self.clements_matrix(theta, phi, D, alpha, beta)
+    return U_out
 
   def local_EC(self, theta, phi, D, alpha, beta):
     raise NotImplementedError()
