@@ -12,12 +12,14 @@ Original file is located at
 #
 #History
 # 15/11/2022 - Created this File
+# 14/12/2022 - Added Clements Support
 
 import numpy as np
 import jax.numpy as jnp
 from jax import jit
+from jax.scipy.linalg import block_diag
 import scipy.stats
-from functools import partial
+from functools import partial, reduce
 
 class Linear_Optics:
 
@@ -32,12 +34,12 @@ class Linear_Optics:
     """
     self.N_modes = N_modes
 
-  def haar_mat(self, N_modes):
+  def haar_mat(self, N):
     r"""
     Returns NxN Haar random unitary matrix
     param N_modes: Number of spatial modes input to the network.
     """
-    return scipy.stats.unitary_group.rvs(N_modes)
+    return scipy.stats.unitary_group.rvs(N) + 0j
 
 
   @partial(jit, static_argnums = (0, ))
@@ -62,7 +64,8 @@ class Linear_Optics:
     return T
 
 
-  def clements(theta, phi, D, alpha, beta):
+  @partial(jit, static_argnums = (0, ))
+  def clements(self, theta, phi, D, alpha, beta):
 
     r"""
     Differentiable clements matrix, to return a NxN unitary transformation
@@ -73,5 +76,161 @@ class Linear_Optics:
     param beta: 1D array for directional coupler errors
     """
 
-    raise NotImplementedError()
+    assert (len(theta)) == int(self.N_modes * (self.N_modes - 1)/2)
+    assert (len(phi)) == int(self.N_modes * (self.N_modes - 1)/2)
+    assert (len(alpha)) == int(self.N_modes * (self.N_modes - 1)/2)
+    assert (len(beta)) == int(self.N_modes * (self.N_modes - 1)/2)
+    assert (len(D)) == int(self.N_modes)
 
+    col_matrices = []
+    idx = 0
+    for i in range(self.N_modes):
+      if i%2 == 0:
+        t = theta[idx : idx + self.N_modes//2]
+        p = phi[idx : idx + self.N_modes//2]
+        a = alpha[idx : idx + self.N_modes//2]
+        b = beta[idx : idx + self.N_modes//2]
+        idx = idx + self.N_modes//2
+
+        a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(self.N_modes))
+        a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(self.N_modes//2))).reshape(self.N_modes)), 1, axis = 1)
+        a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2), 1j * jnp.sin(jnp.pi/4 + a))).reshape(self.N_modes)), -1, axis = 1)
+        H_a = a_d + a_01 + a_10
+
+        b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(self.N_modes))
+        b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(self.N_modes//2))).reshape(self.N_modes)), 1, axis = 1)
+        b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(self.N_modes)), -1, axis = 1)
+        H_b = b_d + b_01 + b_10
+
+        Theta = jnp.dstack((jnp.exp(1j * t), jnp.ones(self.N_modes//2))).reshape(self.N_modes)
+        Phi = jnp.dstack((jnp.exp(1j * p), jnp.ones(self.N_modes//2))).reshape(self.N_modes)
+
+      else:
+        t = theta[idx : idx + self.N_modes//2 - 1]
+        p = phi[idx : idx + self.N_modes//2 - 1]
+        a = alpha[idx : idx + self.N_modes//2 - 1]
+        b = beta[idx : idx + self.N_modes//2 - 1]
+        idx = idx + (self.N_modes//2 - 1)
+
+        a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(self.N_modes - 2))
+        a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(self.N_modes//2 - 1))).reshape(self.N_modes - 2)), 1, axis = 1)
+        a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2 - 1), 1j * jnp.sin(jnp.pi/4 + a))).reshape(self.N_modes - 2)), -1, axis = 1)
+        H_a = a_d + a_01 + a_10
+
+        b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(self.N_modes - 2))
+        b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(self.N_modes//2 - 1))).reshape(self.N_modes - 2)), 1, axis = 1)
+        b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2 - 1), 1j * jnp.sin(jnp.pi/4 + b))).reshape(self.N_modes - 2)), -1, axis = 1)
+        H_b = b_d + b_01 + b_10
+
+        H_a = block_diag(jnp.array([1]), H_a, jnp.array([1]))
+        H_b = block_diag(jnp.array([1]), H_b, jnp.array([1]))
+
+        Theta = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * t), jnp.ones(self.N_modes//2 - 1))).reshape(self.N_modes - 2), jnp.array(1, dtype = 'complex64')))
+        Phi = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * p), jnp.ones(self.N_modes//2 - 1))).reshape(self.N_modes - 2), jnp.array(1, dtype = 'complex64')))
+
+
+      M = H_b @ jnp.diag(Theta) @ H_a @ jnp.diag(Phi)
+      col_matrices.append(M)
+    return jnp.diag(jnp.exp(1j * D)) @ reduce(jnp.matmul, col_matrices[::-1])
+
+
+  #@partial(jit, static_argnums = (0, ))
+  def get_clements_phases(self, U, inverse = False):
+
+    r"""
+    Given a unitary matrix U, returns phase shifts theta, phi, phase screen D that configures Clements mesh to U
+    This function is written in numpy as there is no need to make it differentiable
+    param U: 2D matrix to configure the Clements mesh
+    """
+
+    t = np.zeros(self.N_modes * (self.N_modes - 1)//2)
+    p = np.zeros(self.N_modes * (self.N_modes - 1)//2)
+    M = U
+    T_inv_list = []
+    T_list = []
+
+    def get_two_mode_unitary(i, j, theta, phi, inverse = False):
+      U_temp = np.eye(self.N_modes, dtype = 'complex128')
+      m = min(i, j) - 1
+      H = 1/np.sqrt(2) * np.array([[1, 1j], [1j, 1]])
+      Theta = np.array([[np.exp(1j * theta), 0], [0, 1]])
+      Phi = np.array([[np.exp(1j * phi), 0], [0, 1]])
+      M = H @ Theta @ H @ Phi
+      U_temp[m : m + 2, m : m + 2] = M
+      if inverse:
+        U_temp = np.conj(U_temp).T
+      return U_temp
+
+    def null_matrix_element(mode1, mode2, M_row, M_col, M, inverse = False):
+        if inverse:
+            if M[M_row - 1, M_col] == 0:
+                thetar = 0; phir = 0
+            elif M[M_row-1, M_col-1]==0:
+                thetar = np.pi; phir = 0
+            else:
+                r = -M[M_row - 1, M_col] / M[M_row - 1, M_col - 1]
+                thetar = 2*np.arctan(np.abs(r))
+                phir = -np.angle(r)
+        else:
+            if M[M_row - 2, M_col - 1]==0:
+                thetar = 0; phir = 0
+            elif M[M_row - 1, M_col - 1]==0:
+                thetar = np.pi; phir = 0
+            else:
+                r = M[M_row - 2, M_col - 1] / M[M_row - 1, M_col - 1]
+                thetar = 2*np.arctan(np.abs(r))
+                phir = -np.angle(r)
+
+        U = get_two_mode_unitary(mode1, mode2, thetar, phir, inverse=inverse)
+        if inverse: M = M @ U
+        else:   M = U @ M
+
+        return M, phir, thetar
+
+    for i in range(1, self.N_modes):
+      if i%2 == 1:
+        for j in range(i):
+          m = i - j
+          U, phi, theta = null_matrix_element(m, m + 1, self.N_modes - j, i - j, U, inverse = True)
+          T_list.append((m - 1, m, theta, phi))
+      else:
+        for j in range(1, i + 1):
+          m = self.N_modes + j - i - 1
+          U, phi, theta = null_matrix_element(m, m + 1, self.N_modes + j - i, j, U)
+          T_inv_list.append((m - 1, m, theta, phi))
+
+    D = np.angle(np.diag(U))
+
+    T_inv_list.reverse()
+    for T_inv_matrix in T_inv_list:
+      m, n, theta, phi = T_inv_matrix
+      phi_temp = D[m] - D[n]
+      D[m] = D[n] - phi - np.pi - theta
+      D[n] = D[n] + np.pi - theta
+      T_list.append((m, n, theta, phi_temp))
+
+    idx = {k:0 for k in range(self.N_modes - 1)}
+
+    theta_array = np.zeros((self.N_modes//2, self.N_modes))
+    phi_array = np.zeros((self.N_modes//2, self.N_modes))
+    for MZ in T_list:
+      i, j, theta, phi = MZ
+      col = 2 * idx[i] + i%2
+      idx[i] = idx[i] + 1
+      row = int(i/2)
+      theta_array[row, col] = theta
+      phi_array[row, col] = phi
+
+    idx = 0
+    for i in range(self.N_modes):
+      for j in range(self.N_modes//2 - i%2):
+        t[idx] = theta_array[j, i]
+        p[idx] = phi_array[j, i]
+        idx = idx + 1
+    D = D % (2 * np.pi)
+
+    return t, p, D
+
+
+  def local_EC(self, theta, phi, D, alpha, beta):
+    raise NotImplementedError()
