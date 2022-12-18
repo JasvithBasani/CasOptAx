@@ -12,36 +12,67 @@ Original file is located at
 #
 #History
 # 19/11/2022 - Created this File
+# 16/12/2022 - Working single photon transmission functions
 
 import numpy as np
 import jax.numpy as jnp
-from jax import jit, grad
+from jax import jit
 from functools import partial
 
 class Scatterer:
 
-  def __init__(self,
-               v_g: jnp.float32 = 1.0
-               ):
+  def __init__(self):
     r"""
     Class of differentiable transfer functions.
-    In particular, returns frequency dependent reflection/transmission coefficients
+    In particular, returns frequency dependent reflection/transmission scattering matrix elements
     These coefficients can be found here: https://doi.org/10.1364/PRJ.1.000110
     param v_g: group velocity to which all terms are normalized, set to 1.0
     """
-    self.v_g = v_g
 
-  @partial(jit, static_argnums = (0, ))
   def delta_func(self, k, p):
-    if (k == p):
-      return 1
-    else:
-      return 0
+    r"""
+    Delta function
+    To ensure energy conservation between input and output frequencies
+    """
+    return jnp.allclose(k, p)
 
   @partial(jit, static_argnums = (0, ))
-  def t_1(self, k, p, Delta, Gamma, gamma):
-    return ((k - Delta - 1j * (Gamma - gamma)/self.v_g)/(k - Delta + 1j * (Gamma + gamma)/self.v_g)) * self.delta_func(k, p)
+  def t_1(self, k, p, Omega = 0.0, gamma = 1.0, Gamma = 0.0):
 
-  
-  def r_1(self, k, p):
+    r"""
+    Single photon transmission coefficient
+    param k: input frequency
+    param p: output frequency 
+    For all purposes, k == p -> delta function ensures this
+    param Omega: detuning of emitter frequency from k
+    param gamma: coupling rate of emitter to waveguide mode
+    param Gamma: loss rate into environment modes
+    """
+    return ((k - Omega - 1j * 0.5 * (gamma - Gamma))/(k - Omega + 1j * 0.5 * (gamma + Gamma))) * self.delta_func(k, p)
+
+  @partial(jit, static_argnums = (0, ))
+  def r_1(self, k, p, Omega = 0.0, gamma = 1.0, Gamma = 0.0):
+
+    r"""
+    Single photon transmission coefficient
+    param k: input frequency
+    param p: output frequency 
+    For all purposes, k == p -> delta function ensures this
+    param Omega: detuning of emitter frequency from k
+    param gamma: coupling rate of emitter to waveguide mode
+    param Gamma: loss rate into environment modes
+    """
+    return (((0.5 * gamma) ** 0.5)/(k - Omega + 1j * 0.5 * (gamma + Gamma))) * self.delta_func(k, p)
+
+
+  def tt_2(self, k_1, k_2, p_1, p_2, Omega = 0.0, gamma = 0.0, Gamma = 0.0):
+    raise NotImplementedError()
+
+  def rr_2(self, k_1, k_2, p_1, p_2, Omega = 0.0, gamma = 0.0, Gamma = 0.0):
+    raise NotImplementedError()
+
+  def rt_2(self, k_1, k_2, p_1, p_2, Omega = 0.0, gamma = 0.0, Gamma = 0.0):
+    raise NotImplementedError()
+
+  def tr_2(self, k_1, k_2, p_1, p_2, Omega = 0.0, gamma = 0.0, Gamma = 0.0):
     raise NotImplementedError()
