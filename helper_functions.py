@@ -19,7 +19,6 @@ import jax
 import jax.numpy as jnp
 from jax import jit, value_and_grad
 from functools import partial
-!pip install optax
 import optax
 
 class Cost_Functions:
@@ -52,7 +51,7 @@ class Cost_Functions:
   
   def check_unitary(self, mat):
     N = jnp.size(mat, 0)
-    if (jnp.allclose(jnp.matmul(mat, jnp.transpose(jnp.conj(mat))), jnp.eye(N)) and jnp.linalg.det(mat) == 1):
+    if (jnp.allclose(jnp.abs(jnp.matmul(mat, jnp.transpose(jnp.conj(mat)))), jnp.eye(N), atol = 1e-5)) and (jnp.isclose(jnp.abs(jnp.linalg.det(mat)), 1, atol = 1e-5)):
       print ("Unitary")
     else:
       print ("Not Unitary")
@@ -191,6 +190,3 @@ class Optimizer:
         loss_val, _, opt_state_new, args_new = update(func, params_to_diff, params_to_optimize, opt_state_new, args_new)
         print (f'Epoch Number: {epoch}, Loss Value: {np.array(loss_val):.8f}, Auxilary Value: {np.array(_)}')
       return args_new
-
-
-optim_pulse = %time optimizer.run_optimization(test_loss, 'adam', 0.25, 500, (0,), [pulse_1, pulse_2])
