@@ -125,7 +125,8 @@ class Optimizer:
     return loss_val, _, grads
 
 
-  def run_optimization(self, func, optimizer_type, lr, num_epochs, params_to_diff, args, jit_compile = True, plot_loss = False, save_history = False):
+  def run_optimization(self, func, optimizer_type, lr, num_epochs, params_to_diff, args, 
+                       jit_compile = True, plot_loss = [False, 'linear'], save_history = False):
 
     r"""
     Runs optimization and returns the optimized parameters
@@ -136,7 +137,7 @@ class Optimizer:
     param params_to_diff: syntax - '(num_0, num_1 ....)': index of parameters to optimize, in braces. Order to be followed in args
     param args: syntax - '[param_1, param_2, ....]': list of parameters that go into func, order to be maintained for params_to_diff
     param jit_compile: Bool -> to speed up the code with just_in_time compilation
-    param plot_loss: Bool -> to plot the loss
+    param plot_loss: syntax - [Bool, 'linear'/'semilogx']: list with Bool dictating to plot loss, string 'linear'/'semilogx' to determine axis scale
     param save_history: Bool -> to save model parameters and history
 
     """
@@ -163,19 +164,16 @@ class Optimizer:
 
     opt_state = opt.init(params_to_optimize)
 
-    #@partial(jit, static_argnums = (0, 1, ))
     def calc_grad(func, params_to_diff, args):
       (loss_val, _), grads = value_and_grad(func, params_to_diff, has_aux = True)(*args)
       return loss_val, _, grads
 
-    #@partial(jit, static_argnums = (0, 1, ))
     def update(func, params_to_diff, params_to_optimize, opt_state, args):
       loss_val, _, grads = calc_grad(func, params_to_diff, args)
       updates, opt_state = opt.update(grads, opt_state)
       params_to_optimize = optax.apply_updates(params_to_optimize, updates)
-      for param in params_to_optimize:
-        for j in params_to_diff:
-          args[j] = param
+      for (param, j) in zip(params_to_optimize, params_to_diff):
+        args[j] = param
       return loss_val, _, opt_state, args
 
     if jit_compile == True:
@@ -185,7 +183,7 @@ class Optimizer:
     loss_val, _, opt_state_new, args_new = update(func, params_to_diff, params_to_optimize, opt_state, args)
 
     if save_history == True:
-      if plot_loss == False:
+      if plot_loss[0] == False:
         for epoch in range(num_epochs):
           loss_val, _, opt_state_new, args_new = update(func, params_to_diff, params_to_optimize, opt_state_new, args_new)
           loss_data.append(loss_val)
@@ -194,7 +192,7 @@ class Optimizer:
           #opt_state_hist.append(opt_state_new)
           #args_hist.append(args_new)
         return loss_data, auxilary_data, args_new
-      elif plot_loss == True:
+      elif plot_loss[0] == True:
         for epoch in range(num_epochs):
           loss_val, _, opt_state_new, args_new = update(func, params_to_diff, params_to_optimize, opt_state_new, args_new)
           loss_data.append(loss_val)
@@ -203,20 +201,26 @@ class Optimizer:
           #opt_state_hist.append(opt_state_new)
           #args_hist.append(args_new)
         fig, ax = plt.subplots()
-        plt.semilogx(np.arange(0, num_epochs, 1), loss_data)
+        if plot_loss[1] == 'linear':
+          plt.plot(np.arange(0, num_epochs, 1), loss_data)
+        elif plot_loss[1] == 'semilogx':
+          plt.semilogx(np.arange(0, num_epochs, 1), loss_data)
         return loss_data, auxilary_data, args_new
 
     elif save_history == False:
-      if plot_loss == False:
+      if plot_loss[0] == False:
         for epoch in range(num_epochs):
           loss_val, _, opt_state_new, args_new = update(func, params_to_diff, params_to_optimize, opt_state_new, args_new)
           print (f'Epoch Number: {epoch}, Loss Value: {np.array(loss_val):.8f}, Auxilary Value: {np.array(_)}')
         return args_new
-      elif plot_loss == True:
+      elif plot_loss[0] == True:
         for epoch in range(num_epochs):
           loss_val, _, opt_state_new, args_new = update(func, params_to_diff, params_to_optimize, opt_state_new, args_new)
           print (f'Epoch Number: {epoch}, Loss Value: {np.array(loss_val):.8f}, Auxilary Value: {np.array(_)}')
           loss_data.append(loss_val)
         fig, ax = plt.subplots()
-        plt.semilogx(np.arange(0, num_epochs, 1), loss_data)
+        if plot_loss[1] == 'linear':
+          plt.plot(np.arange(0, num_epochs, 1), loss_data)
+        elif plot_loss[1] == 'semilogx':
+          plt.semilogx(np.arange(0, num_epochs, 1), loss_data)
         return args_new
