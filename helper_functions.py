@@ -20,6 +20,7 @@ import jax.numpy as jnp
 from jax import jit, value_and_grad
 from functools import partial
 import optax
+import matplotlib.pyplot as plt
 
 class Cost_Functions:
 
