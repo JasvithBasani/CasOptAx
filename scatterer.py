@@ -122,17 +122,17 @@ class TLE:
           # t_p_2_val = ((p_2_val - Omega - 1j * (Gamma - gamma))/(p_2_val - Omega + 1j * (Gamma + gamma)))
           s_p_2_val = ((Gamma ** 0.5) / (p_2_val - Omega + 1j * 0.5 * (Gamma + gamma)))
           # s_p_2_val = (((2 * Gamma) ** 0.5)/(p_2_val - Omega + 1j * (Gamma + gamma)))
-          np_2 = np.where(np.abs((k_1 + k_2 - p_1) - p_2_val) < dk * 1e-1)
-          nonlinear_mem[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) /2 /jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / dk
-          S_mat[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) / 2 / jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / dk
+          np_2 = np.where(np.abs((k_1 + k_2 - p_1) - p_2_val) < self.dk * 1e-1)
+          nonlinear_mem[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) /2 /jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / self.dk
+          S_mat[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) / 2 / jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / self.dk
           # S_mat[nk_1, nk_2, np_1, np_2] = 1j * ((2 * Gamma) ** 0.5) /2 /jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / dk
           # Linear Terms
           if np_1 == nk_1:
-            linear_mem[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val /2 /dk /dk
-            S_mat[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val / 2 / dk / dk
+            linear_mem[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val /2 /self.dk /self.dk
+            S_mat[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val / 2 / self.dk / self.dk
           if np_1 == nk_2:
-            linear_mem[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val /2 /dk /dk
-            S_mat[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val / 2 / dk / dk
+            linear_mem[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val /2 /self.dk /self.dk
+            S_mat[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val / 2 / self.dk / self.dk
 
     return jnp.array(S_mat), jnp.array(linear_mem), jnp.array(nonlinear_mem)
 
