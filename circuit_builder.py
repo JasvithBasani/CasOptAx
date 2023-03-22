@@ -10,8 +10,8 @@ import jax
 import jax.numpy as jnp
 from jax import jit
 from functools import partial
-from linear_optics import Linear_Optics
-from scatterer import TLE
+from .linear_optics import Linear_Optics
+from .scatterer import TLE
 import itertools
 
 class Circuit:
