@@ -22,7 +22,7 @@ class TLE:
     """
     self.k = k
     self.dk = self.k[2] - self.k[1]
-    warnings.warn('Ensure that all frequency arrays are spaced equally, default dk = 0.1')
+    warnings.warn('Ensure that all frequency arrays are consistant, default k = jnp.arange(-6, 6, 70)')
 
 
   @partial(jit, static_argnums = (0, ))
@@ -72,7 +72,7 @@ class TLE:
     return ((Gamma ** 0.5)/(k - Omega + 1j * 0.5 * (gamma + Gamma)))
 
   #@partial(jit, static_argnums=(0,))
-  def S_mat_tt(self, k_1, k_2, p_1, p_2, Omega = 0.0, Gamma = 1.0, gamma = 0.0):
+  def S_mat_tt(self, k_1, k_2, p_1, p_2, Omega=0.0, Gamma=1.0, gamma=0.0):
     r"""
     Two-photon transmission coefficient.
     Note that this returns (N, N, N, N) size tensor.
@@ -89,6 +89,8 @@ class TLE:
     :return: The full scattering matrix, linear component and nonlinear component
     """
 
+    k_1, k_2, p_1, p_2 = np.array(k_1), np.array(k_2), np.array(p_1), np.array(p_2)
+
     # t_k_1 = np.array(self.S_mat_t(k_1, k_1, Omega, Gamma, gamma))
     # s_k_1 = np.array(self.S_mat_r(k_1, k_1, Omega, Gamma, gamma))
     # t_k_2 = np.array(self.S_mat_t(k_2, k_2, Omega, Gamma, gamma))
@@ -96,38 +98,41 @@ class TLE:
     # t_p_1 = np.array(self.S_mat_t(p_1, p_1, Omega, Gamma, gamma))
     # s_p_1 = np.array(self.S_mat_r(p_1, p_1, Omega, Gamma, gamma))
 
-    k_1, k_2, p_1, p_2 = np.array(k_1), np.array(k_2), np.array(p_1), np.array(p_2)
-
     S_mat = np.zeros((len(k_1), len(k_2), len(p_1), len(p_2))) + 0j
     linear_mem = np.zeros((len(k_1), len(k_2), len(p_1), len(p_2))) + 0j
     nonlinear_mem = np.zeros((len(k_1), len(k_2), len(p_1), len(p_2))) + 0j
     for nk_1 in range(len(k_1)):
-      # t_k_1_val, s_k_1_val = t_k_1[nk_1], s_k_1[nk_1]
       t_k_1_val = ((k_1 - Omega - 1j * 0.5 * (Gamma - gamma)) / (k_1 - Omega + 1j * 0.5 * (Gamma + gamma)))[nk_1]
+      # t_k_1_val = ((k_1 - Omega - 1j * (Gamma - gamma))/(k_1 - Omega + 1j * (Gamma + gamma)))[nk_1]
       s_k_1_val = ((Gamma ** 0.5) / (k_1 - Omega + 1j * 0.5 * (Gamma + gamma)))[nk_1]
+      # s_k_1_val = (((2 * Gamma) ** 0.5)/(k_1 - Omega + 1j * (Gamma + gamma)))[nk_1]
       for nk_2 in range(len(k_2)):
-        # t_k_2_val, s_k_2_val = t_k_2[nk_2], s_k_2[nk_2]
         t_k_2_val = ((k_2 - Omega - 1j * 0.5 * (Gamma - gamma)) / (k_2 - Omega + 1j * 0.5 * (Gamma + gamma)))[nk_2]
+        # t_k_2_val = ((k_2 - Omega - 1j * (Gamma - gamma))/(k_2 - Omega + 1j * (Gamma + gamma)))[nk_2]
         s_k_2_val = ((Gamma ** 0.5) / (k_2 - Omega + 1j * 0.5 * (Gamma + gamma)))[nk_2]
+        # s_k_2_val = (((2 * Gamma) ** 0.5)/(k_2 - Omega + 1j * (Gamma + gamma)))[nk_2]
         for np_1 in range(len(p_1)):
-          # t_p_1_val, s_p_1_val = t_p_1[np_1], s_p_1[np_1]
           t_p_1_val = ((p_1 - Omega - 1j * 0.5 * (Gamma - gamma)) / (p_1 - Omega + 1j * 0.5 * (Gamma + gamma)))[np_1]
+          # t_p_1_val = ((p_1 - Omega - 1j * (Gamma - gamma))/(p_1 - Omega + 1j * (Gamma + gamma)))[np_1]
           s_p_1_val = ((Gamma ** 0.5) / (p_1 - Omega + 1j * 0.5 * (Gamma + gamma)))[np_1]
+          # s_p_1_val = (((2 * Gamma) ** 0.5)/(p_1 - Omega + 1j * (Gamma + gamma)))[np_1]
           p_2_val = k_1[nk_1] + k_2[nk_2] - p_1[np_1]
           # Nonlinear Term
-          # t_p_2_val, s_p_2_val = np.array(self.S_mat_t(p_2_val, p_2_val, Omega, Gamma, gamma)), np.array(self.S_mat_r(p_2_val, p_2_val, Omega, Gamma, gamma))
-          #t_p_2_val = ((p_2_val - Omega - 1j * 0.5 * (Gamma - gamma)) / (p_2_val - Omega + 1j * 0.5 * (Gamma + gamma)))
+          t_p_2_val = ((p_2_val - Omega - 1j * 0.5 * (Gamma - gamma)) / (p_2_val - Omega + 1j * 0.5 * (Gamma + gamma)))
+          # t_p_2_val = ((p_2_val - Omega - 1j * (Gamma - gamma))/(p_2_val - Omega + 1j * (Gamma + gamma)))
           s_p_2_val = ((Gamma ** 0.5) / (p_2_val - Omega + 1j * 0.5 * (Gamma + gamma)))
-          np_2 = np.where(np.abs((k_1 + k_2 - p_1) - p_2_val) < self.dk * 1e-1)
-          S_mat[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) / 2 / jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / self.dk
-          nonlinear_mem[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) / 2 / jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / self.dk
+          # s_p_2_val = (((2 * Gamma) ** 0.5)/(p_2_val - Omega + 1j * (Gamma + gamma)))
+          np_2 = np.where(np.abs((k_1 + k_2 - p_1) - p_2_val) < dk * 1e-1)
+          nonlinear_mem[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) /2 /jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / dk
+          S_mat[nk_1, nk_2, np_1, np_2] = 1j * (Gamma ** 0.5) / 2 / jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / dk
+          # S_mat[nk_1, nk_2, np_1, np_2] = 1j * ((2 * Gamma) ** 0.5) /2 /jnp.pi * s_k_1_val * s_k_2_val * (s_p_1_val + s_p_2_val) / dk
           # Linear Terms
           if np_1 == nk_1:
-            S_mat[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val / 2 / self.dk / self.dk
-            linear_mem[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val / 2 / self.dk / self.dk
+            linear_mem[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val /2 /dk /dk
+            S_mat[nk_1, nk_2, nk_1, nk_2] += t_k_1_val * t_k_2_val / 2 / dk / dk
           if np_1 == nk_2:
-            S_mat[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val / 2 / self.dk / self.dk
-            linear_mem[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val / 2 / self.dk / self.dk
+            linear_mem[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val /2 /dk /dk
+            S_mat[nk_1, nk_2, nk_2, nk_1] += t_k_1_val * t_k_2_val / 2 / dk / dk
 
     return jnp.array(S_mat), jnp.array(linear_mem), jnp.array(nonlinear_mem)
 
