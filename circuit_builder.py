@@ -90,14 +90,18 @@ class Circuit:
                 else:
                     self.mode_defs.append(jnp.zeros(self.k_1.shape))
 
+        lo = Linear_Optics(self.N_modes)
+        tle = TLE()
+
         self.mode_defs = jnp.array(self.mode_defs)
         self.state_defs = jnp.array(self.state_defs)
         self.counts = jnp.array(self.counts)
         self.bogo_coeff = jnp.zeros((len(self.mode_defs), len(self.mode_defs))) + 0j
-        self.single_transfer = TLE.S_mat_t(self.k_1) * TLE.S_mat_t(self.k_2)
+        self.single_transfer = tle.S_mat_t(self.k_1) * tle.S_mat_t(self.k_2)
         self.norm_coeff = jnp.array(np.append([2**-0.5] * len(self.twos), [1] * len(self.ones)))
         self.vmap_twos = jnp.arange(0, len(self.twos))
         self.vmap_ones = jnp.arange(0, len(self.ones))
+
 
         print ("***Circuit Compiled***")
 
@@ -141,7 +145,7 @@ class Circuit:
         :return: output mode definitions for all the two-photon states in the system
         """
 
-        weights = Linear_Optics.clements_matrix(theta, phi, D, alpha, beta)
+        weights = lo.clements_matrix(theta, phi, D, alpha, beta)
         out_modes = self.bogoluigov_coeffs(modes, weights)
         return out_modes
 
@@ -207,7 +211,7 @@ class Circuit:
     
         '''Field programmable two-photon transform'''
         def apply_two_photon_NL(idx, modes):
-            modes = modes.at[idx].set(TLE.psi_out_tt(modes[idx], self.S_matrix))
+            modes = modes.at[idx].set(tle.psi_out_tt(modes[idx], self.S_matrix))
             return modes
         def pass_two_photon_NL(idx, modes):
             return modes
@@ -237,8 +241,8 @@ class Circuit:
             idx = idx + len(self.twos)
 
             modes = jax.lax.cond(bool_3 == 1, apply_one_photon_NL_k1, pass_one_photon_NL, idx, modes, self.single_transfer)
-            modes = jax.lax.cond(((bool_1 == 1) & (bool_2 == 0)), apply_one_photon_NL_k1, pass_one_photon_NL, idx, modes, TLE.S_mat_t(self.k))
-            modes = jax.lax.cond(((bool_1 == 0) & (bool_2 == 1)), apply_one_photon_NL_k2, pass_one_photon_NL, idx, modes, TLE.S_mat_t(self.k))
+            modes = jax.lax.cond(((bool_1 == 1) & (bool_2 == 0)), apply_one_photon_NL_k1, pass_one_photon_NL, idx, modes, tle.S_mat_t(self.k))
+            modes = jax.lax.cond(((bool_1 == 0) & (bool_2 == 1)), apply_one_photon_NL_k2, pass_one_photon_NL, idx, modes, tle.S_mat_t(self.k))
             modes = jax.lax.cond(((bool_1 == 0) & (bool_2 == 0)), pass_one_photon_NL, pass_one_photon_NL, idx, modes, 1)
             return modes
 
