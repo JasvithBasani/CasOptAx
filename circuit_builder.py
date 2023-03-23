@@ -101,7 +101,7 @@ class Circuit:
 
         print ("***Circuit Compiled***")
 
-    @partial(jit, static_argnums = (0, ))
+    @partial(jit, static_argnums = (0, 1, ))
     def make_2D(self, spectral_profile, sigma):
         r"""
         Given a spectral profile for 2 input photons, returns the two-photon wavefunction as a function of k_1, k_2
@@ -114,7 +114,7 @@ class Circuit:
         return spectrum.dot(spectrum.T) + 0j
 
     # TODO: Do I even need this function?
-    @partial(jit, static_argnums = (0, 1, ))
+    @partial(jit, static_argnums = (0, ))
     def init_modes(self, sigma):
         r"""
         Function call occurs during __init__(), to initialize the mode definitions when the circuit is first called
@@ -140,6 +140,7 @@ class Circuit:
         :param beta: Non-optimizable directional coupler error
         :return: output mode definitions for all the two-photon states in the system
         """
+
         weights = Linear_Optics.clements_matrix(theta, phi, D, alpha, beta)
         out_modes = self.bogoluigov_coeffs(modes, weights)
         return out_modes
@@ -160,13 +161,13 @@ class Circuit:
         #  bogo_coeff = bogo_coeff.at[i].set(jnp.append(2**0.5 * 0.5 * jnp.diag(bogo_transform), bogo_transform[jnp.triu_indices_from(bogo_transform, k=1)]))
         #   print (bogo_coeff)
 
-        def two_photon_transform(idx, modes, bogo_coeff, i, j, weights):
+        def two_photon_transform(idx, bogo_coeff, i, j, weights):
             bogo_transform = jnp.einsum('i, j -> ij', weights[i], weights[j])
             bogo_transform = bogo_transform + jnp.transpose(bogo_transform)
             bogo_coeff = bogo_coeff.at[idx].set(jnp.append(2 ** 0.5 * 0.5 * jnp.diag(bogo_transform), bogo_transform[jnp.triu_indices_from(bogo_transform, k=1)]))
             return bogo_coeff
 
-        bogo_coeff_2 = jax.vmap(lambda idx: two_photon_transform(idx, modes, bogo_coeff_0, idx, idx, weights))(
+        bogo_coeff_2 = jax.vmap(lambda idx: two_photon_transform(idx, bogo_coeff_0, idx, idx, weights))(
             self.vmap_twos)
         bogo_coeff = jnp.sum(bogo_coeff_2, axis=0)
 
@@ -182,7 +183,7 @@ class Circuit:
                 if (i == j):
                     pass
                 else:
-                    bogo_coeff = two_photon_transform(idx_count, modes, bogo_coeff, i, j, weights)
+                    bogo_coeff = two_photon_transform(idx_count, bogo_coeff, i, j, weights)
                     idx_count += 1
 
         '''Normalization'''
