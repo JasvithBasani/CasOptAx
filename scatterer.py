@@ -15,7 +15,7 @@ import warnings
 class TLE:
 
   def __init__(self,
-               k = jnp.arange(-6, 6, 70)):
+               k = jnp.linspace(-6, 6, 70)):
     r"""
     Class of differentiable scattering matrix elements, to compute output wavefunctions.
     These coefficients can be found here: https://doi.org/10.1364/PRJ.1.000110
