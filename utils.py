@@ -39,7 +39,7 @@ class Cost_Functions:
         :return:
         """
         fid = jnp.trapz(jnp.conj(pulse_1) * pulse_2) * dt
-        return fid
+        return jnp.abs(fid)
 
     @partial(jit, static_argnums=(0,))
     def fidelity_states(self, state_1, state_2, dk):
@@ -52,7 +52,7 @@ class Cost_Functions:
         :return:
         """
         fid_vals = jax.vmap(lambda i: (jnp.trapz(jnp.trapz(state_1[i] * jnp.conj(state_2[i]))) * dk ** 2))(jnp.arange(0, len(state_1)))
-        return fid_vals, jnp.sum(fid_vals)
+        return fid_vals, jnp.sum(jnp.abs(fid_vals))
 
     def check_unitary(self, mat):
         r"""

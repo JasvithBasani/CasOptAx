@@ -4,6 +4,8 @@
 #History
 # 29/1/2022 - Created this File
 # 15/2/2023 - Working linear layer
+# 30/3/2023 - Working field programmability?
+#
 
 import numpy as np
 import jax
@@ -86,7 +88,7 @@ class Circuit:
                 self.state_defs.append(state)
                 if state == self.input_photons:
                     self.mode_defs.append(self.make_2D(self.spectral_profile, spectral_param))
-                    self.counts.append(count)
+                    self.counts.append(count + self.N_modes)
                 else:
                     self.mode_defs.append(jnp.zeros(self.k_1.shape))
 
