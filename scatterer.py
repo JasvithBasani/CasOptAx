@@ -151,7 +151,7 @@ class TLE:
     :return: The full scattering matrix, linear component and nonlinear component
     """
 
-    nk_1, nk_2, np_1 = jnp.arange(0, len(k_1)), jnp.arange(0, len(k_2)), jnp.arange(0, len(np_1))
+    nk_1, nk_2, np_1 = jnp.arange(0, len(k_1)), jnp.arange(0, len(k_2)), jnp.arange(0, len(p_1))
 
     @jit
     def t_s(k, Omega, Gamma, gamma, idx):
