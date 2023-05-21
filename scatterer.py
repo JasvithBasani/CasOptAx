@@ -203,7 +203,7 @@ class TLE:
       p_2_val = p_2_val.reshape(len(nk_1) * len(nk_2) * len(np_1))
 
       #This line is the bottleneck - think of a way to make this faster
-      np_2 = jax.vmap(lambda idx: jnp.where(jnp.abs(k_1 + k_2 - p_1 - p_2_val[idx]) < dk * 0.1, size = 1, fill_value = jnp.nan))(jnp.arange(0, len(p_2_val)))
+      np_2 = jax.vmap(lambda idx: jnp.where(jnp.abs(k_1 + k_2 - p_1 - p_2_val[idx]) < self.dk * 0.1, size = 1, fill_value = jnp.nan))(jnp.arange(0, len(p_2_val)))
       np_2 = jnp.array(np_2[0]).reshape(len(p_2_val))
       tf_bools = jnp.array(~jnp.isnan(np_2))
       np_2_data = np_2[tf_bools]
