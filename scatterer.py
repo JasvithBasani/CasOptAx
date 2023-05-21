@@ -7,6 +7,7 @@
 # 02/04/2023 - Working two photon transmission function
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 from jax import jit
 from functools import partial
