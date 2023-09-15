@@ -16,7 +16,7 @@ from .linear_optics import Linear_Optics
 from .scatterer import TLE
 import itertools
 
-class Circuit:
+class Circuit_multimode:
 
     def __init__(self,
                  N_modes: jnp.int16 = None,

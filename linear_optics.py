@@ -6,6 +6,7 @@
 # 14/12/2022 - Added Clements Support
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 from jax import jit
 from jax.scipy.linalg import block_diag
@@ -252,3 +253,32 @@ class Linear_Optics:
 
   def local_EC(self, theta, phi, D, alpha, beta):
     raise NotImplementedError()
+
+  @jit
+  def calc_perm(self, U):
+    r"""
+    Calculates the permanent of the square matrix U using the Ryser formula
+
+    :param U: NxN square matrix to calculate the permanent of
+    :return: permanent of U
+    """
+    n_dim_x, n_dim_y = jnp.shape(U)
+    sign = jnp.tile(jnp.array([-1, 1]), 2 ** (n_dim_x - 1))
+
+    def generate_grey(idx):
+      bin_idx = (idx + 1) % (2 ** n_dim_x)
+      new_grey = bin_idx ^ (bin_idx // 2)
+      return new_grey
+
+    new_grey = jax.vmap(lambda idx: generate_grey(idx))(jnp.arange(0, 2 ** n_dim_x))
+    new_grey_rolled = jnp.roll(new_grey, 1)
+    direction = jnp.where(new_grey < new_grey_rolled, +1.0, -1.0)
+
+    grey_diff = np.array([2 ** np.binary_repr(i + 1)[::-1].index('1') for i in range(2 ** (n_dim_x - 1))] * 2)
+    grey_diff_index = jnp.array(np.log2(grey_diff), dtype=jnp.int16)
+    new_vector = U[grey_diff_index]
+
+    reduced = jnp.prod(jnp.cumsum(jnp.einsum('ij, i -> ij', new_vector, direction), axis=0), axis=1)
+    perm = jnp.sum(reduced * sign)
+
+    return perm
