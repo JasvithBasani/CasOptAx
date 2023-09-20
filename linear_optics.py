@@ -4,6 +4,7 @@
 #History
 # 15/11/2022 - Created this File
 # 14/12/2022 - Added Clements Support
+#  15/9/2023 - Matrix permanent calculation
 
 import numpy as np
 import jax
@@ -254,7 +255,7 @@ class Linear_Optics:
   def local_EC(self, theta, phi, D, alpha, beta):
     raise NotImplementedError()
 
-  @jit
+  @partial(jit, static_argnums = (0, ))
   def calc_perm(self, U):
     r"""
     Calculates the permanent of the square matrix U using the Ryser formula

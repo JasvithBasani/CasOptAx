@@ -5,7 +5,7 @@
 # 29/1/2022 - Created this File
 # 15/2/2023 - Working linear layer
 # 30/3/2023 - Working field programmability?
-#
+# 20/9/2023 - Single mode circuit class, with Boson Sampling and 3ls nonlinearity
 
 import numpy as np
 import jax
@@ -15,7 +15,191 @@ from functools import partial
 from .linear_optics import Linear_Optics
 from .scatterer import TLE
 import itertools
+from scipy.special import factorial
 
+class Circuit_singlemode:
+
+    def __init__(self,
+                 N_modes: jnp.int16 = None,
+                 N_photons: jnp.int16 = None,
+                 input_photons: jnp.ndarray = None
+                 ):
+        r"""
+        Class to construct a single mode circuit
+
+        :param N_modes: Number of spatial/wavegudie mdoes in the circuit (i.e. how wide the circuit is)
+        :param N_photons: Number of photons in the circuit (lossless, so photon number is conserved)
+        :param input_photons: Tuple of length N_modes, with sum N_photons to indicate which initial state is populated
+        """
+        """TODO: Superpositions of states as input is not yet supported"""
+
+        print("Initialzing Circuit, Please Wait .  .  .")
+        self.N_modes = N_modes
+        self.N_photons = N_photons
+        self.input_photons = input_photons
+
+        assert jnp.sum(jnp.array(self.input_photons)) == self.N_photons
+        assert len(self.input_photons) == self.N_modes
+
+        def generate_possible_states(N_modes, N_photons):
+            r"""
+            __init__ call to generate all possible states of N_photons in N_modes
+            :param N_modes:
+            :param N_photons:
+            :return:
+            """
+
+            def generate_state(N_modes, N_photons, current_state):
+                if N_modes == 0:
+                    if N_photons == 0:
+                        valid_state.append(current_state[:])
+                    return
+                for num in range(0, N_photons + 1):
+                    if num <= N_photons:
+                        current_state.append(num)
+                        generate_state(N_modes - 1, N_photons - num, current_state)
+                        current_state.pop()
+
+            valid_state = []
+            generate_state(N_modes, N_photons, [])
+            return valid_state
+
+        self.possible_states_list = generate_possible_states(self.N_modes, self.N_photons)
+        self.num_possible_states = len(self.possible_states_list)
+        self.arange_possible_states = jnp.arange(0, self.num_possible_states)
+        self.possible_states_dict = {}
+        for s in self.possible_states_list:
+            self.possible_states_dict[tuple(s)] = jnp.array(s)
+
+        self.state_amps = {}
+        for s in self.possible_states_list:
+            if (tuple(s) == self.input_photons):
+                self.state_amps[tuple(s)] = 1 + 0j
+            else:
+                self.state_amps[tuple(s)] = 0 + 0j
+
+        self.states_idx = {}
+        for s in self.possible_states_list:
+            idx_array, count = np.array([]), 0
+            for num in s:
+                idx = ([count] * num)
+                if idx != []:
+                    idx_array = np.append(idx_array, idx)
+                count = count + 1
+            self.states_idx[tuple(s)] = jnp.array(idx_array, dtype=jnp.int16)
+
+        self.all_states_factorial = {}
+        self.all_states_idx = {}
+        for s1 in self.possible_states_list:
+            states_factorial = []
+            idx_vals = []
+            for s2 in self.possible_states_list:
+                states_factorial.append(
+                    jnp.prod(factorial(np.array(s1)), axis=0) * jnp.prod(factorial(np.array(s2)), axis=0))
+                idx_vals.append([self.states_idx[tuple(s1)], self.states_idx[tuple(s2)]])
+            self.all_states_factorial[tuple(s1)] = jnp.array(states_factorial)
+            self.all_states_idx[tuple(s1)] = jnp.array(idx_vals)
+
+        self.lo = Linear_Optics(self.N_modes)
+        self.tle = TLE()
+
+        print("***Circuit Ready For Compilation***")
+
+    @partial(jit, static_argnums=(0,))
+    def add_linear_layer(self, state_amps, theta, phi, D, alpha, beta):
+        r"""
+        User function call to add a linear optical mesh transformation into the circuit
+
+        :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
+        :param theta: Optimizable phase shift values of the mesh, first phase of all the MZIs
+        :param phi: Optimizable phase shift values of the mesh, second phase of all the MZIs
+        :param D: Optimizable phase shift values of the mesh, output phase screen
+        :param alpha: Non-optimizable directional coupler error
+        :param beta: Non-optimizable directional coupler error
+        :return: Output probability amplitudes of all the states. Again, maintains pytree structure
+        """
+
+        weights = self.lo.clements_matrix(theta, phi, D, alpha, beta)
+        new_amps = jax.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+        new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
+        new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
+        return new_amps
+
+    @partial(jit, static_argnums=(0,))
+    def bosonic_transform(self, amp, U, states_array_idx, states_array_factorial):
+        r"""
+        Internal function (maybe) to calculate the probability amplitudes of the states
+
+        :param amp: Probability amplitude of a given state, as passed via tree_map from add_linear_layer
+        :param U: Unitary matrix weights, typically matrix implemented by MZI mesh derived from theta, phi, D, alpha, beta passed to add_linear_layer
+        :param states_array_idx: Indices of states to extract sub-matrix U_st from matrix U
+        :param states_array_factorial: product of factorial of corresponding states
+        :return: Pytree (structure of self.possible_states_dict) of how every state maps to every other state
+        """
+        def make_U_st(U, idx_array):
+            r"""
+            Make U_st matrix from U - m_{k} copies of the k^{th} input state column and n_{k} copies of the k^{th} output state row
+
+            :param U: Matrix to calculate the sub-matrices
+            :param idx_array: Indices corresponding to the m_{k} and n_{k} states, generated in self.all_states_idx
+            :return: submatrix U_{st}
+            """
+            idx_x, idx_y = idx_array[0], idx_array[1]
+            return U[:, idx_x][idx_y]
+
+        U_st = jax.vmap(lambda idx_val: make_U_st(U, states_array_idx[idx_val]))(self.arange_possible_states)
+        perm_vals = jax.vmap(lambda idx: self.lo.calc_perm(U_st[idx]))(self.arange_possible_states)
+        new_amps = amp * perm_vals / jnp.sqrt(states_array_factorial)
+        # new_probs = amp**2 * (jnp.abs(perm_vals)/jnp.sqrt(states_array_factorial))**2
+        return new_amps
+
+    @partial(jit, static_argnums=(0,))
+    def add_3ls_nonlinear_layer(self, state_amps, chi_1_array, chi_2_array):
+        r"""
+        User function call to add a layer of three-level system based photon subtraction/injection nonlinearity into the circuit
+
+        :param state_amps: Probability amplitudes of type dict, maintain the pytree structure of self.possible_states_dict
+        :param chi_1_array: Array of size N_modes, to indicate the phase-shifts on the single photon component
+        :param chi_2_array: Array of size N_modes, to indicate the phase-shifts on the (N - 1) photon component
+        """
+        # assert len(chi_1) == N_modes
+        # assert len(chi_2) == N_modes
+        state_amps_out = jax.tree_map(lambda amp, state_array: self.nonlinearity_3ls(amp, state_array, chi_1_array, chi_2_array), state_amps, self.possible_states_dict)
+        return state_amps_out
+
+    @partial(jit, static_argnums=(0,))
+    def nonlinearity_3ls(self, state_amp, state_array, chi_1_array, chi_2_array):
+        r"""
+        Internal function, logic is a bit obscure. Note that this function is being called via tree_map
+        Pytree structure is defined by state_array
+
+        :param state_amp: Probability amplitude of a given state
+        :param state_array: Defines the pytree structure to follow - by default self.possible_states_dict
+        :param chi_1_array: Array of size N_modes, to indicate the phase-shifts on the single photon component
+        :param chi_2_array: Array of size N_modes, to indicate the phase-shifts on the (N - 1) photon component
+
+        """
+
+        def zero_photon_phase(chi_1_val, chi_2_val, state_array_elem):
+            return 1.0 + 0j
+
+        @jit
+        def multi_photon_phase(chi_1_val, chi_2_val, state_array_elem):
+            return jnp.exp(1j * chi_1_val + 1j * (state_array_elem - 1) * chi_2_val)
+
+        @jit
+        def photon_num_nl(idx, state_array_elem):
+            return jax.lax.cond(state_array_elem >= 1,
+                                lambda _: multi_photon_phase(*_),
+                                lambda _: zero_photon_phase(*_),
+                                (chi_1_array[idx], chi_2_array[idx], state_array_elem),
+                                )
+
+        phase_nl = jax.vmap(lambda idx: photon_num_nl(idx, state_array[idx]))(self.arange_possible_states)
+        return state_amp * jnp.prod(phase_nl, axis=0)
+
+
+"""TODO: Update this class to operate on Pytrees rather than structured memory states"""
 class Circuit_multimode:
 
     def __init__(self,
@@ -105,7 +289,7 @@ class Circuit_multimode:
         self.vmap_ones = jnp.arange(0, len(self.ones))
 
 
-        print ("***Circuit Compiled***")
+        print ("***Circuit Ready For Compilation***")
 
     @partial(jit, static_argnums = (0, 1, ))
     def make_2D(self, spectral_profile, sigma):
