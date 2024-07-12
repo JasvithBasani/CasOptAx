@@ -54,7 +54,7 @@ class Linear_Optics:
     t_00 = jnp.exp(1j * phi) * (jnp.cos(alpha - beta) * jnp.sin(theta/2) + 1j * jnp.sin(alpha + beta) * jnp.cos(theta/2))
     t_01 = (jnp.cos(alpha + beta) * jnp.cos(theta/2) + 1j * jnp.sin(alpha - beta) * jnp.sin(theta/2))
     t_10 = jnp.exp(1j * phi) * (jnp.cos(alpha + beta) * jnp.cos(theta/2) - 1j * jnp.sin(alpha - beta) * jnp.sin(theta/2))
-    t_11 = -(jnp.cos(alpha - beta) * jnp.sin(theta/2) + 1j * jnp.sin(alpha + beta) * jnp.cos(theta/2))
+    t_11 = -(jnp.cos(alpha - beta) * jnp.sin(theta/2) - 1j * jnp.sin(alpha + beta) * jnp.cos(theta/2))
     T = 1j * jnp.exp(1j * theta/2) * jnp.array([[t_00, t_01],
                                                 [t_10, t_11]])
     return T
@@ -89,57 +89,122 @@ class Linear_Optics:
     assert (len(beta)) == int(self.N_modes * (self.N_modes - 1)/2)
     assert (len(D)) == int(self.N_modes)
 
-    col_matrices = []
-    idx = 0
-    for i in range(self.N_modes):
-      if i%2 == 0:
-        t = theta[idx : idx + self.N_modes//2]
-        p = phi[idx : idx + self.N_modes//2]
-        a = alpha[idx : idx + self.N_modes//2]
-        b = beta[idx : idx + self.N_modes//2]
-        idx = idx + self.N_modes//2
+    def even_clements(N_modes, theta, phi, D, alpha, beta):
+      r"""
+      Clements matrix for even N_modes
+      """
+      col_matrices = []
+      idx = 0
+      for i in range(N_modes):
+        if i%2 == 0:
+          t = theta[idx : idx + N_modes//2]
+          p = phi[idx : idx + N_modes//2]
+          a = alpha[idx : idx + N_modes//2]
+          b = beta[idx : idx + N_modes//2]
+          idx = idx + N_modes//2
 
-        a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(self.N_modes))
-        a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(self.N_modes//2))).reshape(self.N_modes)), 1, axis = 1)
-        a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2), 1j * jnp.sin(jnp.pi/4 + a))).reshape(self.N_modes)), -1, axis = 1)
-        H_a = a_d + a_01 + a_10
+          a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(N_modes))
+          a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(N_modes//2))).reshape(N_modes)), 1, axis = 1)
+          a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + a))).reshape(N_modes)), -1, axis = 1)
+          H_a = a_d + a_01 + a_10
 
-        b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(self.N_modes))
-        b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(self.N_modes//2))).reshape(self.N_modes)), 1, axis = 1)
-        b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(self.N_modes)), -1, axis = 1)
-        H_b = b_d + b_01 + b_10
+          b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(N_modes))
+          b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(N_modes//2))).reshape(N_modes)), 1, axis = 1)
+          b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(N_modes)), -1, axis = 1)
+          H_b = b_d + b_01 + b_10
 
-        Theta = jnp.dstack((jnp.exp(1j * t), jnp.ones(self.N_modes//2))).reshape(self.N_modes)
-        Phi = jnp.dstack((jnp.exp(1j * p), jnp.ones(self.N_modes//2))).reshape(self.N_modes)
+          Theta = jnp.dstack((jnp.exp(1j * t), jnp.ones(N_modes//2))).reshape(N_modes)
+          Phi = jnp.dstack((jnp.exp(1j * p), jnp.ones(N_modes//2))).reshape(N_modes)
 
-      else:
-        t = theta[idx : idx + self.N_modes//2 - 1]
-        p = phi[idx : idx + self.N_modes//2 - 1]
-        a = alpha[idx : idx + self.N_modes//2 - 1]
-        b = beta[idx : idx + self.N_modes//2 - 1]
-        idx = idx + (self.N_modes//2 - 1)
+        else:
+          t = theta[idx : idx + N_modes//2 - 1]
+          p = phi[idx : idx + N_modes//2 - 1]
+          a = alpha[idx : idx + N_modes//2 - 1]
+          b = beta[idx : idx + N_modes//2 - 1]
+          idx = idx + (N_modes//2 - 1)
 
-        a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(self.N_modes - 2))
-        a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(self.N_modes//2 - 1))).reshape(self.N_modes - 2)), 1, axis = 1)
-        a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2 - 1), 1j * jnp.sin(jnp.pi/4 + a))).reshape(self.N_modes - 2)), -1, axis = 1)
-        H_a = a_d + a_01 + a_10
+          a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(N_modes - 2))
+          a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(N_modes//2 - 1))).reshape(N_modes - 2)), 1, axis = 1)
+          a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2 - 1), 1j * jnp.sin(jnp.pi/4 + a))).reshape(N_modes - 2)), -1, axis = 1)
+          H_a = a_d + a_01 + a_10
 
-        b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(self.N_modes - 2))
-        b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(self.N_modes//2 - 1))).reshape(self.N_modes - 2)), 1, axis = 1)
-        b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(self.N_modes//2 - 1), 1j * jnp.sin(jnp.pi/4 + b))).reshape(self.N_modes - 2)), -1, axis = 1)
-        H_b = b_d + b_01 + b_10
+          b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(N_modes - 2))
+          b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(N_modes//2 - 1))).reshape(N_modes - 2)), 1, axis = 1)
+          b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2 - 1), 1j * jnp.sin(jnp.pi/4 + b))).reshape(N_modes - 2)), -1, axis = 1)
+          H_b = b_d + b_01 + b_10
 
-        H_a = block_diag(jnp.array([1]), H_a, jnp.array([1]))
-        H_b = block_diag(jnp.array([1]), H_b, jnp.array([1]))
+          H_a = block_diag(jnp.array([1]), H_a, jnp.array([1]))
+          H_b = block_diag(jnp.array([1]), H_b, jnp.array([1]))
 
-        Theta = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * t), jnp.ones(self.N_modes//2 - 1))).reshape(self.N_modes - 2), jnp.array(1, dtype = 'complex64')))
-        Phi = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * p), jnp.ones(self.N_modes//2 - 1))).reshape(self.N_modes - 2), jnp.array(1, dtype = 'complex64')))
+          Theta = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * t), jnp.ones(N_modes//2 - 1))).reshape(N_modes - 2), jnp.array(1, dtype = 'complex64')))
+          Phi = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * p), jnp.ones(N_modes//2 - 1))).reshape(N_modes - 2), jnp.array(1, dtype = 'complex64')))
 
 
-      M = H_b @ jnp.diag(Theta) @ H_a @ jnp.diag(Phi)
-      col_matrices.append(M)
-    return jnp.diag(jnp.exp(1j * D)) @ reduce(jnp.matmul, col_matrices[::-1])
+        M = H_b @ jnp.diag(Theta) @ H_a @ jnp.diag(Phi)
+        col_matrices.append(M)
+      return jnp.diag(jnp.exp(1j * D)) @ reduce(jnp.matmul, col_matrices[::-1])
+    
+    def odd_clements(N_modes, theta, phi, D, alpha, beta):
+      r"""
+      Clements matrix for odd N_modes
+      """
+      col_matrices = []
+      idx = 0
+      for i in range(N_modes):
+        if i%2 == 0:
+          t = theta[idx : idx + N_modes//2]
+          p = phi[idx : idx + N_modes//2]
+          a = alpha[idx : idx + N_modes//2]
+          b = beta[idx : idx + N_modes//2]
+          idx = idx + N_modes//2
 
+          a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(N_modes - 1))
+          a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(N_modes//2))).reshape(N_modes - 1)), 1, axis = 1)
+          a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + a))).reshape(N_modes - 1)), -1, axis = 1)
+          H_a = a_d + a_01 + a_10
+
+          b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(N_modes - 1))
+          b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(N_modes//2))).reshape(N_modes - 1)), 1, axis = 1)
+          b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(N_modes - 1)), -1, axis = 1)
+          H_b = b_d + b_01 + b_10
+
+          H_a = block_diag(jnp.array([1]), H_a)
+          H_b = block_diag(jnp.array([1]), H_b)
+
+          Theta = jnp.hstack((jnp.dstack((jnp.exp(1j * t), jnp.ones(N_modes//2))).reshape(N_modes - 1), jnp.array(1, dtype = 'complex64')))
+          Phi = jnp.hstack((jnp.dstack((jnp.exp(1j * p), jnp.ones(N_modes//2))).reshape(N_modes - 1), jnp.array(1, dtype = 'complex64')))
+        
+        else:
+          t = theta[idx : idx + N_modes//2]
+          p = phi[idx : idx + N_modes//2]
+          a = alpha[idx : idx + N_modes//2]
+          b = beta[idx : idx + N_modes//2]
+          idx = idx + N_modes//2
+
+          a_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + a), jnp.cos(jnp.pi/4 + a))).reshape(N_modes - 1))
+          a_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(np.pi/4 + a), jnp.zeros(N_modes//2))).reshape(N_modes - 1)), 1, axis = 1)
+          a_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + a))).reshape(N_modes - 1)), -1, axis = 1)
+          H_a = a_d + a_01 + a_10
+
+          b_d = jnp.diag(jnp.dstack((jnp.cos(jnp.pi/4 + b), jnp.cos(jnp.pi/4 + b))).reshape(N_modes - 1))
+          b_01 = jnp.roll(jnp.diag(jnp.dstack((1j * jnp.sin(jnp.pi/4 + b), np.zeros(N_modes//2))).reshape(N_modes - 1)), 1, axis = 1)
+          b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(N_modes - 1)), -1, axis = 1)
+          H_b = b_d + b_01 + b_10
+
+          H_a = block_diag(H_a, jnp.array([1]))
+          H_b = block_diag(H_b, jnp.array([1]))
+
+          Theta = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * t), jnp.ones(N_modes//2))).reshape(N_modes - 1)))
+          Phi = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * p), jnp.ones(N_modes//2))).reshape(N_modes - 1)))
+
+        M = H_b @ jnp.diag(Theta) @ H_a @ jnp.diag(Phi)
+        col_matrices.append(M)
+      return jnp.diag(jnp.exp(1j * D)) @ reduce(jnp.matmul, col_matrices[::-1])
+
+    if self.N_modes %2 == 0:
+      return even_clements(self.N_modes, theta, phi, D, alpha, beta)
+    else:
+      return odd_clements(self.N_modes, theta, phi, D, alpha, beta)
 
   def get_clements_phases(self, U, inverse = False):
     r"""

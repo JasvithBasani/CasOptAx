@@ -27,7 +27,7 @@ class Circuit_singlemode:
         r"""
         Class to construct a single mode circuit
 
-        :param N_modes: Number of spatial/wavegudie mdoes in the circuit (i.e. how wide the circuit is)
+        :param N_modes: Number of spatial/waveguide modes in the circuit (i.e. how wide the circuit is)
         :param N_photons: Number of photons in the circuit (lossless, so photon number is conserved)
         :param input_photons: Tuple of length N_modes, with sum N_photons to indicate which initial state is populated
         """
@@ -101,7 +101,7 @@ class Circuit_singlemode:
             self.all_states_idx[tuple(s1)] = jnp.array(idx_vals)
 
         self.lo = Linear_Optics(self.N_modes)
-        self.tle = TLE()
+        #self.tle = TLE()
 
         print("***Circuit Ready For Compilation***")
 
