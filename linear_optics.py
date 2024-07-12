@@ -168,8 +168,8 @@ class Linear_Optics:
           b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(N_modes - 1)), -1, axis = 1)
           H_b = b_d + b_01 + b_10
 
-          H_a = block_diag(jnp.array([1]), H_a)
-          H_b = block_diag(jnp.array([1]), H_b)
+          H_a = block_diag(H_a, jnp.array([1]))
+          H_b = block_diag(H_b, jnp.array([1]))
 
           Theta = jnp.hstack((jnp.dstack((jnp.exp(1j * t), jnp.ones(N_modes//2))).reshape(N_modes - 1), jnp.array(1, dtype = 'complex64')))
           Phi = jnp.hstack((jnp.dstack((jnp.exp(1j * p), jnp.ones(N_modes//2))).reshape(N_modes - 1), jnp.array(1, dtype = 'complex64')))
@@ -191,8 +191,8 @@ class Linear_Optics:
           b_10 = jnp.roll(jnp.diag(jnp.dstack((jnp.zeros(N_modes//2), 1j * jnp.sin(jnp.pi/4 + b))).reshape(N_modes - 1)), -1, axis = 1)
           H_b = b_d + b_01 + b_10
 
-          H_a = block_diag(H_a, jnp.array([1]))
-          H_b = block_diag(H_b, jnp.array([1]))
+          H_a = block_diag(jnp.array([1]), H_a)
+          H_b = block_diag(jnp.array([1]), H_b)
 
           Theta = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * t), jnp.ones(N_modes//2))).reshape(N_modes - 1)))
           Phi = jnp.hstack((jnp.array(1, dtype = 'complex64'), jnp.dstack((jnp.exp(1j * p), jnp.ones(N_modes//2))).reshape(N_modes - 1)))
