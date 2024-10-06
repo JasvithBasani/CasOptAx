@@ -16,6 +16,7 @@ from .linear_optics import Linear_Optics
 from .scatterer import TLE
 import itertools
 from scipy.special import factorial
+import matplotlib.pyplot as plt
 
 class Circuit_singlemode:
 
@@ -197,6 +198,42 @@ class Circuit_singlemode:
 
         phase_nl = jax.vmap(lambda idx: photon_num_nl(idx, state_array[idx]))(self.arange_possible_states)
         return state_amp * jnp.prod(phase_nl, axis=0)
+    
+    def visualize_state(state_amps, figsize = None, cmap = None, x_fontsize = 9, bar_width = 0.8, ylim = (0.0, 1.05)):
+        r"""
+        Function to visualize a histogram of state amplitudes.
+        
+        :param state_amps: Probability amplitudes of type dict, maintain the pytree structure of self.possible_states_dict
+        :param figsize:
+        :param cmap:
+        :param x_fontsize:
+        :param bar_width:
+        :param ylim:
+        
+        """
+        if cmap == None:
+            cmap = plt.colormaps.get_cmap('Blues')
+        else:
+            pass
+
+        amps_array, basis_elements = [], []
+        for idx, s in enumerate(state_amps):
+            amps_array.append(np.abs(state_amps[s]))
+            string = '$| '
+            for jdx in range(len(s)):
+                string += str(s[jdx])
+            string = string + ' \\rangle $'
+            basis_elements.append(string)  
+
+        if figsize == None:
+            fig, ax = plt.subplots(figsize = (len(basis_elements)/5, 3.5))
+        else:
+            fig, ax = plt.subplots(figsize = figsize)
+
+        ax.bar(np.arange(0, len(basis_elements)), np.array(amps_array), facecolor = cmap(0.32), edgecolor = cmap(0.8), width = bar_width)
+        ax.set_xticks(np.arange(0, len(basis_elements)), basis_elements, fontsize = x_fontsize, rotation = 90)
+        ax.set_ylim(ylim)
+        plt.show()
 
 
 """TODO: Update this class to operate on Pytrees rather than structured memory states"""

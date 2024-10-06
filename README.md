@@ -1,5 +1,32 @@
 # Cascaded Optical Systems Approach to Neural Networks (CasOptAx)
 
-Experimental tools to model scattering based photonic neural networks
+![](/assets/fig_1.png)
 
-Developed by Jasvith Basani - Quantum Photonics Group, JQI (Edo Waks)
+
+## Overview
+
+This repository contains code to model quantum photonic neural networks using linear optical elements and cavity QED nonlinearities. The detailed architecture is introduced in the manuscript "[Universal Logical Quantum Photonic Neural Network Processor via Cavity-Assisted Interactions](https://arxiv.org/abs/2410.02088)" by Basani, Niu, and Waks(2024).
+
+## Components
+
+-`linear_optics.py`: helper functions for linear optical meshes
+-`scatterer.py`: scattering matrix generator for multimode 2LS nonlinearity
+-`circuit_builder.py`: main models to to simulate forward scattering with both single-mode and multimode circuits 
+-`utils.py`: miscellaneous utilities
+-`spin_network.py`: ~
+-`Tutorials`: 
+    `QPNN_Haar_Random_Tutorial.ipynb`: Tutorial file to optimize the phases of a 2 layer QPNN to generate a 3-photon Haar-random state
+
+
+Training histories are written to `npy` files which are not included in this repository, but are available upon request from the authors.
+
+## Citing
+
+```
+@article{basani2024universal,
+  title={Universal Logical Quantum Photonic Neural Network Processor via Cavity-Assisted Interactions},
+  author={Basani, Jasvith Raj and Niu, Murphy Yuezhen and Waks, Edo},
+  journal={arXiv preprint arXiv:2410.02088},
+  year={2024}
+}
+```
