@@ -1,7 +1,4 @@
-#Jasvith Raj Basani
-#
-#
-#History
+# History
 # 29/1/2022 - Created this File
 # 15/2/2023 - Working linear layer
 # 30/3/2023 - Working field programmability?
@@ -199,11 +196,11 @@ class Circuit_singlemode:
         phase_nl = jax.vmap(lambda idx: photon_num_nl(idx, state_array[idx]))(self.arange_possible_states)
         return state_amp * jnp.prod(phase_nl, axis=0)
     
-    def visualize_state(state_amps, figsize = None, cmap = None, x_fontsize = 9, bar_width = 0.8, ylim = (0.0, 1.05)):
+    def visualize_state(self, amps, figsize = None, cmap = None, x_fontsize = 9, bar_width = 0.8, ylim = (0.0, 1.05)):
         r"""
         Function to visualize a histogram of state amplitudes.
         
-        :param state_amps: Probability amplitudes of type dict, maintain the pytree structure of self.possible_states_dict
+        :param amps: Probability amplitudes of type dict, maintain the pytree structure of self.possible_states_dict
         :param figsize:
         :param cmap:
         :param x_fontsize:
@@ -217,8 +214,8 @@ class Circuit_singlemode:
             pass
 
         amps_array, basis_elements = [], []
-        for idx, s in enumerate(state_amps):
-            amps_array.append(np.abs(state_amps[s]))
+        for idx, s in enumerate(amps):
+            amps_array.append(np.abs(amps[s]))
             string = '$| '
             for jdx in range(len(s)):
                 string += str(s[jdx])

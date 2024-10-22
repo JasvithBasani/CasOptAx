@@ -1,7 +1,4 @@
-#Jasvith Raj Basani
-#
-#
-#History
+# History
 # 19/11/2022 - Created this File
 # 16/12/2022 - Working single photon transmission function
 # 02/04/2023 - Working two photon transmission function

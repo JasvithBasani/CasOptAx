@@ -1,6 +1,6 @@
 # Cascaded Optical Systems Approach to Neural Networks (CasOptAx)
 
-![](/assets/fig_1.png)
+![](/assets/qonn_schematic.png)
 
 
 ## Overview
@@ -9,10 +9,11 @@ This repository contains code to model quantum photonic neural networks using li
 
 ## Components
 
--`linear_optics.py`: helper functions for linear optical meshes
+-`linear_optics.py`: helper functions for linear optical unitary evolution
 -`scatterer.py`: scattering matrix generator for multimode 2LS nonlinearity
 -`circuit_builder.py`: main models to to simulate forward scattering with both single-mode and multimode circuits 
 -`utils.py`: miscellaneous utilities
+-`meshes_utils.py`: helper functions to make this repository compatible with the meshes package
 -`spin_network.py`: ~
 -`Tutorials`: 
     `QPNN_Haar_Random_Tutorial.ipynb`: Tutorial file to optimize the phases of a 2 layer QPNN to generate a 3-photon Haar-random state
@@ -21,6 +22,8 @@ This repository contains code to model quantum photonic neural networks using li
 Training histories are written to `npy` files which are not included in this repository, but are available upon request from the authors.
 
 ## Citing
+
+If you found this useful, please cite us using: 
 
 ```
 @article{basani2024universal,

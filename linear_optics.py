@@ -1,10 +1,7 @@
-#Jasvith Raj Basani
-#
-#
-#History
+# History
 # 15/11/2022 - Created this File
 # 14/12/2022 - Added Clements Support
-#  15/9/2023 - Matrix permanent calculation
+# 15/9/2023 - Matrix permanent calculation
 
 import numpy as np
 import jax
