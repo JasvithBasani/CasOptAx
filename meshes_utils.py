@@ -52,7 +52,8 @@ class Prunable_SCF(StructuredMeshNetwork):
     
     #Ensure that mesh size is a power of 2
     assert N == 2**int(np.log2(N))
-    assert np.max(stride_vals) <= N//2
+    if stride_vals is not None:
+      assert np.max(stride_vals) <= N//2
 
     
     lens = [N//2] * len(stride_vals)
