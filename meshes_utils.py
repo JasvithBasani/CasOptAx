@@ -54,8 +54,12 @@ class Prunable_SCF(StructuredMeshNetwork):
     assert N == 2**int(np.log2(N))
     if stride_vals is not None:
       assert np.max(stride_vals) <= N//2
+      
+    if stride_vals is None:
+      stride_vals = self.make_stride_array(N, alpha = 2.0)
+    else:
+      stride_vals = np.array(stride_vals)
 
-    
     lens = [N//2] * len(stride_vals)
     shifts = [0] * len(stride_vals)
 
@@ -74,11 +78,6 @@ class Prunable_SCF(StructuredMeshNetwork):
         new_order = perm_vals[0]
         perm[idx] = np.array(jump_layers(old_order, new_order))
       return perm
-
-    if stride_vals is None:
-      stride_vals = self.make_stride_array(N, alpha = 2.0)
-    else:
-      stride_vals = np.array(stride_vals)
 
     permutations = np.array(generate_perms(N, stride_vals))
 
