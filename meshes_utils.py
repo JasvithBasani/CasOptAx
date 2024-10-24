@@ -69,7 +69,7 @@ class Prunable_SCF(StructuredMeshNetwork):
       return output
 
     def generate_perms(N, stride_vals):
-      perm = [None] * len(stride_vals + 1)
+      perm = [None] * (len(stride_vals) + 1)
       perm_vals = [np.arange(N)]
       for idx, s in enumerate(stride_vals):
         old_order = perm_vals[0]
