@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from jax import jit
 from functools import partial
 from .linear_optics import Linear_Optics
-from .scatterer import TLE
+# from .scatterer import TLE
 import itertools
 from scipy.special import factorial
 import matplotlib.pyplot as plt
@@ -61,42 +61,89 @@ class Circuit_singlemode:
             valid_state = []
             generate_state(N_modes, N_photons, [])
             return valid_state
+        
+        def generate_possible_states_backtrack(N_modes, N_photons):
+            r"""
+            __init__ call to generate all possible states of N_photons in N_modes
+            Backtracking algorithm to generate lists of length N_modes that sums up to N_photons
+            :param N_modes:
+            :param N_photons:
+            :return:
+            """
+            
+            result_list, result_dict = [], {}
+            def backtrack(remaining_sum, index):
+                if index == N_modes:
+                    if remaining_sum == 0:
+                        result_list.append(current_state[:])
+                        result_dict[tuple(current_state)] = 0 + 0j
+                    return
 
-        self.possible_states_list = generate_possible_states(self.N_modes, self.N_photons)
+                for i in range(remaining_sum + 1):
+                    current_state[index] = i
+                    backtrack(remaining_sum - i, index + 1)
+
+            current_state = [0] * N_modes
+            backtrack(N_photons, 0)
+            return result_list, result_dict
+
+        # self.possible_states_list = generate_possible_states(self.N_modes, self.N_photons)
+        self.possible_states_list, self.state_amps = generate_possible_states_backtrack(self.N_modes, self.N_photons)
+        self.state_amps[tuple(self.input_photons)] = 1 + 0j
+        
         self.num_possible_states = len(self.possible_states_list)
         self.arange_possible_states = jnp.arange(0, self.num_possible_states)
-        self.possible_states_dict = {}
-        for s in self.possible_states_list:
-            self.possible_states_dict[tuple(s)] = jnp.array(s)
+        
+        # self.possible_states_dict = {}
+        # for s in self.possible_states_list:
+        #     self.possible_states_dict[tuple(s)] = jnp.array(s)
+        self.possible_states_dict = self.state_amps.copy()
+        self.possible_states_dict.update(itertools.starmap(lambda k, v: (k, jnp.array(v)), zip(self.possible_states_dict.keys(), self.possible_states_list)))
 
-        self.state_amps = {}
-        for s in self.possible_states_list:
-            if (tuple(s) == self.input_photons):
-                self.state_amps[tuple(s)] = 1 + 0j
-            else:
-                self.state_amps[tuple(s)] = 0 + 0j
+        # self.state_amps = {}
+        # for s in self.possible_states_list:
+        #     if (tuple(s) == self.input_photons):
+        #         self.state_amps[tuple(s)] = 1 + 0j
+        #     else:
+        #         self.state_amps[tuple(s)] = 0 + 0j
 
         self.states_idx = {}
         for s in self.possible_states_list:
-            idx_array, count = np.array([]), 0
-            for num in s:
-                idx = ([count] * num)
-                if idx != []:
-                    idx_array = np.append(idx_array, idx)
-                count = count + 1
+            # Use list comprehension to precompute idx_array
+            idx_array = np.concatenate([np.full(num, count) for count, num in enumerate(s)])
+            # Convert to JAX array with the desired dtype
             self.states_idx[tuple(s)] = jnp.array(idx_array, dtype=jnp.int16)
+        
+        # for s in self.possible_states_list:
+        #     idx_array, count = np.array([]), 0
+        #     for num in s:
+        #         idx = ([count] * num)
+        #         if idx != []:
+        #             idx_array = np.append(idx_array, idx)
+        #         count = count + 1
+        #     self.states_idx[tuple(s)] = jnp.array(idx_array, dtype=jnp.int16)
 
-        self.all_states_factorial = {}
-        self.all_states_idx = {}
-        for s1 in self.possible_states_list:
-            states_factorial = []
-            idx_vals = []
-            for s2 in self.possible_states_list:
-                states_factorial.append(
-                    jnp.prod(factorial(np.array(s1)), axis=0) * jnp.prod(factorial(np.array(s2)), axis=0))
-                idx_vals.append([self.states_idx[tuple(s1)], self.states_idx[tuple(s2)]])
-            self.all_states_factorial[tuple(s1)] = jnp.array(states_factorial)
-            self.all_states_idx[tuple(s1)] = jnp.array(idx_vals)
+        # self.all_states_factorial = {}
+        # self.all_states_idx = {}
+        # for s1 in self.possible_states_list:
+        #     states_factorial = []
+        #     idx_vals = []
+        #     for s2 in self.possible_states_list:
+        #         states_factorial.append(
+        #             jnp.prod(factorial(np.array(s1)), axis=0) * jnp.prod(factorial(np.array(s2)), axis=0))
+        #         idx_vals.append([self.states_idx[tuple(s1)], self.states_idx[tuple(s2)]])
+        #     self.all_states_factorial[tuple(s1)] = jnp.array(states_factorial)
+        #     self.all_states_idx[tuple(s1)] = jnp.array(idx_vals)
+        
+        factorial_products = jnp.prod(factorial(self.possible_states_list), axis=1)
+        all_states_factorial_matrix = jnp.outer(factorial_products, factorial_products)
+
+        idx_list = [self.states_idx[tuple(state)] for state in self.possible_states_list]
+        all_states_idx = jnp.array([[jnp.stack([idx1, idx2], axis = 0) for idx2 in idx_list] for idx1 in idx_list])
+
+        # Construct all pairwise combinations of indices
+        self.all_states_factorial = {tuple(state): all_states_factorial_matrix[idx] for idx, state in enumerate(self.possible_states_list)}
+        self.all_states_idx = {tuple(state): all_states_idx[idx] for idx, state in enumerate(self.possible_states_list)}
 
         self.lo = Linear_Optics(self.N_modes)
         #self.tle = TLE()
