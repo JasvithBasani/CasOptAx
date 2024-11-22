@@ -110,9 +110,9 @@ class Circuit_singlemode:
         self.states_idx = {}
         for s in self.possible_states_list:
             # Use list comprehension to precompute idx_array
-            idx_array = np.concatenate([np.full(num, count) for count, num in enumerate(s)])
+            idx_array = jnp.concatenate([jnp.full(num, count) for count, num in enumerate(s)])
             # Convert to JAX array with the desired dtype
-            self.states_idx[tuple(s)] = jnp.array(idx_array, dtype=jnp.int16)
+            self.states_idx[tuple(s)] = jnp.array(idx_array, dtype = jnp.int16)
         
         # for s in self.possible_states_list:
         #     idx_array, count = np.array([]), 0
@@ -165,6 +165,22 @@ class Circuit_singlemode:
         """
 
         weights = self.lo.clements_matrix(theta, phi, D, alpha, beta)
+        new_amps = jax.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+        new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
+        new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
+        return new_amps
+    
+    @partial(jit, static_argnums=(0,))
+    def linear_evolution(self, state_amps, U):
+        r"""
+        User function call to evolve a state under a pre-defined unitary
+
+        :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
+        :param U: Unitary of size (N_modes x N_modes) that defines the evolution
+        :return: Output probability amplitudes of all the states. Again, maintains pytree structure
+        """
+        
+        weights = U + 0j
         new_amps = jax.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
         new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
         new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
