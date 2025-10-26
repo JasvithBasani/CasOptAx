@@ -202,7 +202,7 @@ class Circuit_singlemode:
             return new_amps
         
         # Conditionally JIT the core function
-        core_func = jit(_core_func, static_argnums=(0,)) if jit_compile else _core_func
+        core_func = jit(_core_func) if jit_compile else _core_func
         return core_func(state_amps, U)
         
 
