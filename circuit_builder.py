@@ -165,26 +165,46 @@ class Circuit_singlemode:
         """
 
         weights = self.lo.clements_matrix(theta, phi, D, alpha, beta)
-        new_amps = jax.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+        new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
         new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
         new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
         return new_amps
     
-    @partial(jit, static_argnums=(0,))
-    def linear_evolution(self, state_amps, U):
+    # @partial(jit, static_argnums=(0,))
+    # def linear_evolution(self, state_amps, U):
+    #     r"""
+    #     User function call to evolve a state under a pre-defined unitary
+
+    #     :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
+    #     :param U: Unitary of size (N_modes x N_modes) that defines the evolution
+    #     :return: Output probability amplitudes of all the states. Again, maintains pytree structure
+    #     """
+        
+    #     weights = U + 0j
+    #     new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+    #     new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
+    #     new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
+    #     return new_amps
+    
+    def linear_evolution(self, state_amps, U, jit_compile = True):
         r"""
         User function call to evolve a state under a pre-defined unitary
 
         :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
         :param U: Unitary of size (N_modes x N_modes) that defines the evolution
         :return: Output probability amplitudes of all the states. Again, maintains pytree structure
-        """
+        """    
+        def _core_func(state_amps, U):
+            weights = U + 0j
+            new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+            new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
+            new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
+            return new_amps
         
-        weights = U + 0j
-        new_amps = jax.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
-        new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
-        new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
-        return new_amps
+        # Conditionally JIT the core function
+        core_func = jit(_core_func, static_argnums=(0,)) if jit_compile else _core_func
+        return core_func(state_amps, U)
+        
 
     @partial(jit, static_argnums=(0,))
     def bosonic_transform(self, amp, U, states_array_idx, states_array_factorial):
@@ -225,7 +245,7 @@ class Circuit_singlemode:
         """
         # assert len(chi_1) == N_modes
         # assert len(chi_2) == N_modes
-        state_amps_out = jax.tree_map(lambda amp, state_array: self.nonlinearity_3ls(amp, state_array, chi_1_array, chi_2_array), state_amps, self.possible_states_dict)
+        state_amps_out = jax.tree_util.tree_map(lambda amp, state_array: self.nonlinearity_3ls(amp, state_array, chi_1_array, chi_2_array), state_amps, self.possible_states_dict)
         return state_amps_out
 
     @partial(jit, static_argnums=(0,))
