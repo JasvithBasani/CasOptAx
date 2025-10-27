@@ -114,6 +114,8 @@ class Circuit_singlemode:
             # Convert to JAX array with the desired dtype
             self.states_idx[tuple(s)] = jnp.array(idx_array, dtype = jnp.int16)
         
+        '''Alternative logic to generate Hilbert space data'''
+        '''Deprecated since faster logic was implemeted'''
         # for s in self.possible_states_list:
         #     idx_array, count = np.array([]), 0
         #     for num in s:
@@ -144,9 +146,10 @@ class Circuit_singlemode:
         # Construct all pairwise combinations of indices
         self.all_states_factorial = {tuple(state): all_states_factorial_matrix[idx] for idx, state in enumerate(self.possible_states_list)}
         self.all_states_idx = {tuple(state): all_states_idx[idx] for idx, state in enumerate(self.possible_states_list)}
+        
+        self._linear_evolution_jit = jit(self._core_linear_evolution)
 
         self.lo = Linear_Optics(self.N_modes)
-        #self.tle = TLE()
 
         print("***Circuit Ready For Compilation***")
 
@@ -171,20 +174,15 @@ class Circuit_singlemode:
         return new_amps
     
     # @partial(jit, static_argnums=(0,))
-    # def linear_evolution(self, state_amps, U):
-    #     r"""
-    #     User function call to evolve a state under a pre-defined unitary
-
-    #     :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
-    #     :param U: Unitary of size (N_modes x N_modes) that defines the evolution
-    #     :return: Output probability amplitudes of all the states. Again, maintains pytree structure
-    #     """
-        
-    #     weights = U + 0j
-    #     new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
-    #     new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
-    #     new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
-    #     return new_amps
+    def _core_linear_evolution(self, state_amps, U):
+        r"""
+        Core function implementation of linear_evolution. Abstracted away to allow conditional jitting
+        """
+        weights = U + 0j
+        new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+        new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
+        new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
+        return new_amps
     
     def linear_evolution(self, state_amps, U, jit_compile = True):
         r"""
@@ -193,18 +191,12 @@ class Circuit_singlemode:
         :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
         :param U: Unitary of size (N_modes x N_modes) that defines the evolution
         :return: Output probability amplitudes of all the states. Again, maintains pytree structure
-        """    
-        def _core_func(state_amps, U):
-            weights = U + 0j
-            new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
-            new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
-            new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
-            return new_amps
-        
-        # Conditionally JIT the core function
-        core_func = jit(_core_func) if jit_compile else _core_func
-        return core_func(state_amps, U)
-        
+        """
+        if jit_compile:
+            return self._linear_evolution_jit(state_amps, U)
+        else:
+            return self._core_linear_evolution(state_amps, U)
+
 
     @partial(jit, static_argnums=(0,))
     def bosonic_transform(self, amp, U, states_array_idx, states_array_factorial):
