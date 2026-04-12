@@ -27,18 +27,26 @@ Training histories are written to `npy` files which are not included in this rep
 If you found this useful, please cite us using: 
 
 ```
-@article{basani2024universal,
-  title={Universal Logical Quantum Photonic Neural Network Processor via Cavity-Assisted Interactions},
+@article{basani2025universal,
+  title={Universal logical quantum photonic neural network processor via cavity-assisted interactions},
   author={Basani, Jasvith Raj and Niu, Murphy Yuezhen and Waks, Edo},
-  journal={arXiv preprint arXiv:2410.02088},
-  year={2024}
+  journal={npj Quantum Information},
+  volume={11},
+  number={1},
+  pages={142},
+  year={2025},
+  publisher={Nature Publishing Group UK London}
 }
 ```
 ```
-@article{basani2025hardware,
-  title={Hardware-Efficient Large-Scale Universal Linear Transformations for Optical Modes in the Synthetic Time Dimension},
+@article{basani2026hardware,
+  title={Hardware-Efficient Universal Linear Transformations for Optical Modes in the Synthetic Time Dimension},
   author={Basani, Jasvith Raj and Cui, Chaohan and Postlewaite, Jack and Waks, Edo and Guha, Saikat},
-  journal={arXiv preprint arXiv:2505.00865},
-  year={2025}
+  journal={PRX Quantum},
+  volume={7},
+  number={2},
+  pages={020305},
+  year={2026},
+  publisher={APS}
 }
 ```
