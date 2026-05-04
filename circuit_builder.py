@@ -86,31 +86,27 @@ class Circuit_singlemode:
             current_state = [0] * N_modes
             backtrack(N_photons, 0)
             return result_list, result_dict
-        
-        
+
         def generate_possible_states_optimized(N_modes, N_photons):
             r"""
             __init__ call to generate all possible states of N_photons in N_modes
-            Backtracking algorithm to generate lists of length N_modes that sums up to N_photons
+            Optimized algorithm to generate lists of length N_modes that sums up to N_photons
             :param N_modes:
             :param N_photons:
             :return:
             """
-            result_list = []
-            result_dict = {}
+            states = []
+            
             for combo in itertools.combinations_with_replacement(range(N_modes), N_photons):
-                
-                # Create a zero-filled state
                 state = [0] * N_modes
-                
-                # Add photons to the modes specified by the combination
                 for mode_index in combo:
                     state[mode_index] += 1
+                states.append(state)
+            
+            states.reverse()
+            result_list = states
+            result_dict = {tuple(state): 0 + 0j for state in states}
                     
-                state_tuple = tuple(state)
-                result_list.append(state)
-                result_dict[state_tuple] = 0 + 0j
-                
             return result_list, result_dict
 
         # self.possible_states_list = generate_possible_states(self.N_modes, self.N_photons)
