@@ -117,58 +117,61 @@ class Circuit_singlemode:
         self.num_possible_states = len(self.possible_states_list)
         self.arange_possible_states = jnp.arange(0, self.num_possible_states)
         
-        # self.possible_states_dict = {}
-        # for s in self.possible_states_list:
-        #     self.possible_states_dict[tuple(s)] = jnp.array(s)
         self.possible_states_dict = self.state_amps.copy()
-        self.possible_states_dict.update(itertools.starmap(lambda k, v: (k, jnp.array(v)), zip(self.possible_states_dict.keys(), self.possible_states_list)))
-
-        # self.state_amps = {}
-        # for s in self.possible_states_list:
-        #     if (tuple(s) == self.input_photons):
-        #         self.state_amps[tuple(s)] = 1 + 0j
-        #     else:
-        #         self.state_amps[tuple(s)] = 0 + 0j
-
-        self.states_idx = {}
+        # self.possible_states_dict.update(itertools.starmap(lambda k, v: (k, jnp.array(v)), zip(self.possible_states_dict.keys(), self.possible_states_list)))
         for s in self.possible_states_list:
-            # Use list comprehension to precompute idx_array
-            idx_array = jnp.concatenate([jnp.full(num, count) for count, num in enumerate(s)])
-            # Convert to JAX array with the desired dtype
-            self.states_idx[tuple(s)] = jnp.array(idx_array, dtype = jnp.int16)
-        
-        '''Alternative logic to generate Hilbert space data'''
-        '''Deprecated since faster logic was implemeted'''
-        # for s in self.possible_states_list:
-        #     idx_array, count = np.array([]), 0
-        #     for num in s:
-        #         idx = ([count] * num)
-        #         if idx != []:
-        #             idx_array = np.append(idx_array, idx)
-        #         count = count + 1
-        #     self.states_idx[tuple(s)] = jnp.array(idx_array, dtype=jnp.int16)
+            self.possible_states_dict[tuple(s)] = jnp.array(s)
 
-        # self.all_states_factorial = {}
-        # self.all_states_idx = {}
-        # for s1 in self.possible_states_list:
-        #     states_factorial = []
-        #     idx_vals = []
-        #     for s2 in self.possible_states_list:
-        #         states_factorial.append(
-        #             jnp.prod(factorial(np.array(s1)), axis=0) * jnp.prod(factorial(np.array(s2)), axis=0))
-        #         idx_vals.append([self.states_idx[tuple(s1)], self.states_idx[tuple(s2)]])
-        #     self.all_states_factorial[tuple(s1)] = jnp.array(states_factorial)
-        #     self.all_states_idx[tuple(s1)] = jnp.array(idx_vals)
+        # self.states_idx = {}
+        # for s in self.possible_states_list:
+        #     # Use list comprehension to precompute idx_array
+        #     idx_array = jnp.concatenate([jnp.full(num, count) for count, num in enumerate(s)])
+        #     # Convert to JAX array with the desired dtype
+        #     self.states_idx[tuple(s)] = jnp.array(idx_array, dtype = jnp.int16)
         
-        factorial_products = jnp.prod(factorial(self.possible_states_list), axis=1)
+        self.states_idx = {}
+        idx_matrix_np = np.zeros((self.num_possible_states, self.N_photons), dtype=np.int16)
+
+        for i, s in enumerate(self.possible_states_list):
+            # Using np.concatenate and np.full is ~100x faster here than jnp
+            idx_array = np.concatenate([np.full(num, count) for count, num in enumerate(s)])   
+            # Store the JAX version in the dict, but keep the NumPy version for matrix math below
+            self.states_idx[tuple(s)] = jnp.array(idx_array, dtype=jnp.int16)
+            idx_matrix_np[i] = idx_array
+        
+        D = self.num_possible_states
+        all_states_idx_np = np.empty((D, D, 2, self.N_photons), dtype=np.int16)
+        
+        # Broadcast rows and columns instantly
+        all_states_idx_np[:, :, 0, :] = idx_matrix_np[:, None, :] 
+        all_states_idx_np[:, :, 1, :] = idx_matrix_np[None, :, :] 
+
+        # Cast to JAX exactly ONE time at the very end
+        all_states_idx_jnp = jnp.array(all_states_idx_np)
+
+        states_matrix_np = np.array(self.possible_states_list)
+        factorial_products = jnp.prod(factorial(states_matrix_np), axis=1)
         all_states_factorial_matrix = jnp.outer(factorial_products, factorial_products)
 
-        idx_list = [self.states_idx[tuple(state)] for state in self.possible_states_list]
-        all_states_idx = jnp.array([[jnp.stack([idx1, idx2], axis = 0) for idx2 in idx_list] for idx1 in idx_list])
+        self.all_states_factorial = {
+            tuple(state): all_states_factorial_matrix[idx] 
+            for idx, state in enumerate(self.possible_states_list)
+        }
+        
+        self.all_states_idx = {
+            tuple(state): all_states_idx_jnp[idx] 
+            for idx, state in enumerate(self.possible_states_list)
+        }
+        
+        # factorial_products = jnp.prod(factorial(self.possible_states_list), axis=1)
+        # all_states_factorial_matrix = jnp.outer(factorial_products, factorial_products)
 
-        # Construct all pairwise combinations of indices
-        self.all_states_factorial = {tuple(state): all_states_factorial_matrix[idx] for idx, state in enumerate(self.possible_states_list)}
-        self.all_states_idx = {tuple(state): all_states_idx[idx] for idx, state in enumerate(self.possible_states_list)}
+        # idx_list = [self.states_idx[tuple(state)] for state in self.possible_states_list]
+        # all_states_idx = jnp.array([[jnp.stack([idx1, idx2], axis = 0) for idx2 in idx_list] for idx1 in idx_list])
+
+        # # Construct all pairwise combinations of indices
+        # self.all_states_factorial = {tuple(state): all_states_factorial_matrix[idx] for idx, state in enumerate(self.possible_states_list)}
+        # self.all_states_idx = {tuple(state): all_states_idx[idx] for idx, state in enumerate(self.possible_states_list)}
         
         self._linear_evolution_jit = jit(self._core_linear_evolution)
 
