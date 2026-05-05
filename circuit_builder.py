@@ -1,9 +1,3 @@
-# History
-# 29/1/2022 - Created this File
-# 15/2/2023 - Working linear layer
-# 30/3/2023 - Working field programmability?
-# 20/9/2023 - Single mode circuit class, with Boson Sampling and 3ls nonlinearity
-
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -41,7 +35,7 @@ class Circuit_singlemode:
 
         def generate_possible_states(N_modes, N_photons):
             r"""
-            __init__ call to generate all possible states of N_photons in N_modes
+            DEPRECATED: __init__ call to generate all possible states of N_photons in N_modes
             :param N_modes:
             :param N_photons:
             :return:
@@ -64,7 +58,7 @@ class Circuit_singlemode:
         
         def generate_possible_states_backtrack(N_modes, N_photons):
             r"""
-            __init__ call to generate all possible states of N_photons in N_modes
+            DEPRECATED: __init__ call to generate all possible states of N_photons in N_modes
             Backtracking algorithm to generate lists of length N_modes that sums up to N_photons
             :param N_modes:
             :param N_photons:
@@ -96,18 +90,12 @@ class Circuit_singlemode:
             :return:
             """
             states = []
-            
-            for combo in itertools.combinations_with_replacement(range(N_modes), N_photons):
-                state = [0] * N_modes
-                for mode_index in combo:
-                    state[mode_index] += 1
+            n_positions = N_photons + N_modes - 1
+            for bars in itertools.combinations(range(n_positions), N_modes - 1):
+                padded_bars = (-1,) + bars + (n_positions,)
+                state = [padded_bars[i+1] - padded_bars[i] - 1 for i in range(N_modes)]
                 states.append(state)
-            
-            states.reverse()
-            result_list = states
-            result_dict = {tuple(state): 0 + 0j for state in states}
-                    
-            return result_list, result_dict
+            return states, {tuple(state): 0j for state in states}
 
         # self.possible_states_list = generate_possible_states(self.N_modes, self.N_photons)
         # self.possible_states_list, self.state_amps = generate_possible_states_backtrack(self.N_modes, self.N_photons)
@@ -121,13 +109,6 @@ class Circuit_singlemode:
         # self.possible_states_dict.update(itertools.starmap(lambda k, v: (k, jnp.array(v)), zip(self.possible_states_dict.keys(), self.possible_states_list)))
         for s in self.possible_states_list:
             self.possible_states_dict[tuple(s)] = jnp.array(s)
-
-        # self.states_idx = {}
-        # for s in self.possible_states_list:
-        #     # Use list comprehension to precompute idx_array
-        #     idx_array = jnp.concatenate([jnp.full(num, count) for count, num in enumerate(s)])
-        #     # Convert to JAX array with the desired dtype
-        #     self.states_idx[tuple(s)] = jnp.array(idx_array, dtype = jnp.int16)
         
         self.states_idx = {}
         idx_matrix_np = np.zeros((self.num_possible_states, self.N_photons), dtype=np.int16)
@@ -141,46 +122,160 @@ class Circuit_singlemode:
         
         D = self.num_possible_states
         all_states_idx_np = np.empty((D, D, 2, self.N_photons), dtype=np.int16)
-        
-        # Broadcast rows and columns instantly
         all_states_idx_np[:, :, 0, :] = idx_matrix_np[:, None, :] 
         all_states_idx_np[:, :, 1, :] = idx_matrix_np[None, :, :] 
 
-        # Cast to JAX exactly ONE time at the very end
-        all_states_idx_jnp = jnp.array(all_states_idx_np)
+        # Master Matrix for the fock transition function
+        self.all_states_idx_matrix = jnp.array(all_states_idx_np)
 
         states_matrix_np = np.array(self.possible_states_list)
         factorial_products = jnp.prod(factorial(states_matrix_np), axis=1)
-        all_states_factorial_matrix = jnp.outer(factorial_products, factorial_products)
+        
+        # Master Factorial Matrix
+        self.all_states_factorial_matrix = jnp.outer(factorial_products, factorial_products)
 
         self.all_states_factorial = {
-            tuple(state): all_states_factorial_matrix[idx] 
+            tuple(state): self.all_states_factorial_matrix[idx] 
             for idx, state in enumerate(self.possible_states_list)
         }
         
         self.all_states_idx = {
-            tuple(state): all_states_idx_jnp[idx] 
+            tuple(state): self.all_states_idx_jnp[idx] 
             for idx, state in enumerate(self.possible_states_list)
         }
         
-        # factorial_products = jnp.prod(factorial(self.possible_states_list), axis=1)
-        # all_states_factorial_matrix = jnp.outer(factorial_products, factorial_products)
-
-        # idx_list = [self.states_idx[tuple(state)] for state in self.possible_states_list]
-        # all_states_idx = jnp.array([[jnp.stack([idx1, idx2], axis = 0) for idx2 in idx_list] for idx1 in idx_list])
-
-        # # Construct all pairwise combinations of indices
-        # self.all_states_factorial = {tuple(state): all_states_factorial_matrix[idx] for idx, state in enumerate(self.possible_states_list)}
-        # self.all_states_idx = {tuple(state): all_states_idx[idx] for idx, state in enumerate(self.possible_states_list)}
+        N_p = self.N_photons
+        self.perm_sign = jnp.array(np.tile(np.array([-1.0, 1.0]), 2 ** (N_p - 1)))
         
-        self._linear_evolution_jit = jit(self._core_linear_evolution)
+        bin_idx = (np.arange(2 ** N_p) + 1) % (2 ** N_p)
+        new_grey = bin_idx ^ (bin_idx // 2)
+        new_grey_rolled = np.roll(new_grey, 1)
+        self.perm_direction = jnp.array(np.where(new_grey < new_grey_rolled, +1.0, -1.0))
+        
+        indices = [(i + 1 & -(i + 1)).bit_length() - 1 for i in range(2 ** (N_p - 1))]
+        self.perm_grey_diff_index = jnp.array(indices * 2, dtype=jnp.int16)
 
+        self._linear_evolution_jit = jax.jit(self._core_linear_evolution)
         self.lo = Linear_Optics(self.N_modes)
 
         print("***Circuit Ready For Compilation***")
+        
+    @partial(jax.jit, static_argnums=(0,))
+    def calc_perm(self, U_sub):
+        r"""Calculates the permanent of a submatrix using the highly optimized Ryser formula.
+
+        This implementation evaluates the permanent with zero overhead generation by 
+        leveraging static Gray code and sign arrays pre-calculated during class 
+        initialization. It is strictly compiled for XLA acceleration.
+
+        Args:
+            U_sub (jax.Array): A square submatrix of shape (N_photons, N_photons) extracted 
+                from the spatial unitary matrix.
+
+        Returns:
+            jax.Array: A scalar JAX array representing the complex permanent of the submatrix.
+        """
+        # U_sub is indexed based on the pre-calculated gray code difference map
+        new_vector = U_sub[self.perm_grey_diff_index]
+        # Row-wise broadcast multiplication by the direction array
+        scaled_vector = new_vector * self.perm_direction[:, None]
+        # Cumulative sum and reduction
+        reduced = jnp.prod(jnp.cumsum(scaled_vector, axis=0), axis=1)
+        perm = jnp.sum(reduced * self.perm_sign)
+
+        return perm
+        
+    @partial(jax.jit, static_argnums=(0,))
+    def get_fock_transition_matrix(self, U):
+        r"""Converts a spatial unitary matrix into a Fock-basis transition matrix.
+
+        This function maps an N_modes x N_modes spatial unitary to a DxD Fock transition 
+        matrix (where D is the size of the Hilbert space). It extracts all necessary 
+        submatrices in parallel using JAX `vmap` and calculates their permanents 
+        simultaneously, enabling hardware-accelerated state evolution.
+
+        Args:
+            U (jax.Array): The spatial unitary matrix of shape (N_modes, N_modes).
+
+        Returns:
+            jax.Array: The complex DxD transition matrix in the Fock basis.
+        """
+        def extract_submatrix(idx_pair):
+            # idx_pair[0] -> input state modes (columns)
+            # idx_pair[1] -> output state modes (rows)
+            return U[idx_pair[1], :][:, idx_pair[0]]
+        # 2. Vmap over the entire DxD grid to extract all submatrices simultaneously
+        extract_all = jax.vmap(jax.vmap(extract_submatrix, in_axes=0), in_axes=0)
+        U_st_grid = extract_all(self.all_states_idx_matrix) 
+        # 3. Calculate permanents for the entire grid
+        perms = jax.vmap(jax.vmap(self.lo.calc_perm))(U_st_grid)
+        # 4. Apply factorials. 
+        # We transpose (.T) so rows = output states and columns = input states
+        U_fock = (perms / jnp.sqrt(self.all_states_factorial_matrix)).T
+        return U_fock
+
+    @partial(jax.jit, static_argnums=(0,))
+    def add_linear_layer(self, state_amps, theta, phi, D_phase, alpha, beta):
+        r"""Evolves the quantum state through a parameterized linear optical mesh.
+
+        This function constructs the spatial unitary from the mesh parameters and physical 
+        imperfections using the Clements decomposition. It then flattens the input state 
+        PyTree, applies the Fock transition matrix via a single matrix-vector multiplication, 
+        and reconstructs the output PyTree.
+
+        Args:
+            state_amps (dict): Probability amplitudes of the input states. Must maintain 
+                the PyTree structure of `self.possible_states_dict`.
+            theta (jax.Array): Optimizable internal phase shifts of the mesh MZIs.
+            phi (jax.Array): Optimizable external phase shifts of the mesh MZIs.
+            D_phase (jax.Array): Optimizable phase shifts for the output phase screen.
+            alpha (jax.Array or float): Non-optimizable directional coupler error.
+            beta (jax.Array or float): Non-optimizable directional coupler error.
+
+        Returns:
+            dict: The output probability amplitudes, maintaining the exact same PyTree 
+                dictionary structure as the input `state_amps`.
+        """
+        U = self.lo.clements_matrix(theta, phi, D_phase, alpha, beta)
+        amps_vec = jnp.array(jax.tree_util.tree_leaves(state_amps))
+        U_fock = self.get_fock_transition_matrix(U)
+        new_amps_vec = U_fock @ amps_vec
+        pytree_struct = jax.tree_util.tree_structure(state_amps)
+        return jax.tree_util.tree_unflatten(pytree_struct, new_amps_vec)
+
+    def _core_linear_evolution(self, state_amps, U):
+        r"""Core implementation for linear state evolution under a specific spatial unitary.
+
+        This method flattens the PyTree dictionary into a 1D state vector, calculates 
+        the associated DxD Fock transition matrix, performs a matrix-vector dot product 
+        for ultra-fast evolution, and re-packages the state into its original PyTree 
+        structure.
+
+        Args:
+            state_amps (dict): Probability amplitudes of the input states. Must maintain 
+                the PyTree structure of `self.possible_states_dict`.
+            U (jax.Array): The predefined spatial unitary matrix of shape (N_modes, N_modes) 
+                dictating the evolution.
+
+        Returns:
+            dict: The evolved probability amplitudes, maintaining the exact same PyTree 
+                dictionary structure as the input `state_amps`.
+        """
+        amps_vec = jnp.array(jax.tree_util.tree_leaves(state_amps))
+        U_fock = self.get_fock_transition_matrix(U)
+        new_amps_vec = U_fock @ amps_vec
+        
+        pytree_struct = jax.tree_util.tree_structure(state_amps)
+        return jax.tree_util.tree_unflatten(pytree_struct, new_amps_vec)
+
+    def linear_evolution(self, state_amps, U, jit_compile=True):
+        if jit_compile:
+            return self._linear_evolution_jit(state_amps, U)
+        else:
+            return self._core_linear_evolution(state_amps, U)
 
     @partial(jit, static_argnums=(0,))
-    def add_linear_layer(self, state_amps, theta, phi, D, alpha, beta):
+    def add_linear_layer_deprecated(self, state_amps, theta, phi, D, alpha, beta):
         r"""
         User function call to add a linear optical mesh transformation into the circuit
 
@@ -194,38 +289,24 @@ class Circuit_singlemode:
         """
 
         weights = self.lo.clements_matrix(theta, phi, D, alpha, beta)
-        new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+        new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform_deprecated(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
         new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
         new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
         return new_amps
     
     # @partial(jit, static_argnums=(0,))
-    def _core_linear_evolution(self, state_amps, U):
+    def _core_linear_evolution_deprecated(self, state_amps, U):
         r"""
         Core function implementation of linear_evolution. Abstracted away to allow conditional jitting
         """
         weights = U + 0j
-        new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
+        new_amps = jax.tree_util.tree_map(lambda amp, states_array, states_factorial: self.bosonic_transform_deprecated(amp, weights, states_array, states_factorial), state_amps, self.all_states_idx, self.all_states_factorial)
         new_amps_extract, pytree_struct = jax.tree_util.tree_flatten(new_amps)
         new_amps = jax.tree_util.tree_unflatten(pytree_struct, jnp.sum(jnp.array(new_amps_extract), axis=0))
         return new_amps
-    
-    def linear_evolution(self, state_amps, U, jit_compile = True):
-        r"""
-        User function call to evolve a state under a pre-defined unitary
-
-        :param state_amps: Probability amplitudes of the states being input into the mesh. Has to maintain pytree structure of self.possible_states_dict
-        :param U: Unitary of size (N_modes x N_modes) that defines the evolution
-        :return: Output probability amplitudes of all the states. Again, maintains pytree structure
-        """
-        if jit_compile:
-            return self._linear_evolution_jit(state_amps, U)
-        else:
-            return self._core_linear_evolution(state_amps, U)
-
 
     @partial(jit, static_argnums=(0,))
-    def bosonic_transform(self, amp, U, states_array_idx, states_array_factorial):
+    def bosonic_transform_deprecated(self, amp, U, states_array_idx, states_array_factorial):
         r"""
         Internal function (maybe) to calculate the probability amplitudes of the states
 
