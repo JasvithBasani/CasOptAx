@@ -140,7 +140,7 @@ class Circuit_singlemode:
         }
         
         self.all_states_idx = {
-            tuple(state): self.all_states_idx_jnp[idx] 
+            tuple(state): self.all_states_idx_matrix[idx] 
             for idx, state in enumerate(self.possible_states_list)
         }
         
