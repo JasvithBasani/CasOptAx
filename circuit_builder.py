@@ -611,7 +611,7 @@ class Circuit_multimode:
 
         print ("***Circuit Ready For Compilation***")
 
-    @partial(jit, static_argnums = (0, 1, ))
+    @partial(jax.jit, static_argnums = (0, 1, ))
     def make_2D(self, spectral_profile, sigma):
         r"""
         Given a spectral profile for 2 input photons, returns the two-photon wavefunction as a function of k_1, k_2
@@ -624,7 +624,7 @@ class Circuit_multimode:
         return spectrum.dot(spectrum.T) + 0j
 
     # TODO: Do I even need this function?
-    @partial(jit, static_argnums = (0, ))
+    @partial(jax.jit, static_argnums = (0, ))
     def init_modes(self, sigma):
         r"""
         Function call occurs during __init__(), to initialize the mode definitions when the circuit is first called
@@ -637,7 +637,7 @@ class Circuit_multimode:
         # TODO: if input_photons has multiple state, do normalization
         return input_modes + 0j
 
-    @partial(jit, static_argnums = (0, ))
+    @partial(jax.jit, static_argnums = (0, ))
     def add_linear_layer(self, modes, theta, phi, D, alpha, beta):
         r"""
         User function call to add a linear optical mesh transformation to the circuit
@@ -655,7 +655,7 @@ class Circuit_multimode:
         out_modes = self.bogoluigov_coeffs(modes, weights)
         return out_modes
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def bogoluigov_coeffs(self, modes, weights):
         r"""
 
@@ -703,7 +703,7 @@ class Circuit_multimode:
         # return bogo_coeff
         return modes
 
-    @partial(jit, static_argnums = (0, ))
+    @partial(jax.jit, static_argnums = (0, ))
     def add_TLE_layer(self, modes, emitter_bools):
         r"""
 
