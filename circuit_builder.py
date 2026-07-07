@@ -8,7 +8,7 @@ import numpy as np
 from scipy.special import factorial
 import matplotlib.pyplot as plt
 
-from .linear_optics import LinearOptics
+from .linear_optics import Linear_Optics
 
 class Circuit_singlemode:
     """Constructs and manages a single-mode quantum optical circuit.
@@ -163,7 +163,7 @@ class Circuit_singlemode:
         self.perm_grey_diff_index = jnp.array(indices * 2, dtype=jnp.int16)
 
         self._linear_evolution_jit = jax.jit(self._core_linear_evolution)
-        self.lo = LinearOptics(self.n_modes)
+        self.lo = Linear_Optics(self.n_modes)
 
         if verbose:
             print("***Circuit Ready For Compilation***")
