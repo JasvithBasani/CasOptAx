@@ -64,11 +64,112 @@ class Linear_Optics:
 
   def scf_matrix(self, theta, phi, D, alpha, beta):
     raise NotImplementedError()
+  
+  @partial(jax.jit, static_argnums=(0,))
+  def clements_matrix(
+      self,
+      theta: jnp.ndarray,
+      phi: jnp.ndarray,
+      d: jnp.ndarray,
+      alpha: jnp.ndarray,
+      beta: jnp.ndarray,
+  ) -> jnp.ndarray:
+      """Computes the unitary transfer matrix of a Clements mesh network.
+
+      Simulates a differentiable mesh network based on the rectangular Clements
+      decomposition. Mach-Zehnder Interferometers (MZIs) are indexed from top to
+      bottom and left to right.
+
+      Args:
+          theta: A 1D array of internal phase shift values for the MZIs.
+          phi: A 1D array of external phase shift values for the MZIs.
+          d: A 1D array representing the output phase screen.
+          alpha: A 1D array of directional coupler errors (first coupler).
+          beta: A 1D array of directional coupler errors (second coupler).
+
+      Returns:
+          A complex unitary matrix representing the full mesh transformation.
+
+      Raises:
+          ValueError: If the input arrays do not match the expected dimensions
+              based on the configured number of modes.
+      """
+      num_modes = self.num_modes
+      expected_mzis = (num_modes * (num_modes - 1)) // 2
+
+      # Error handling: Validating array dimensions explicitly
+      if theta.shape[0] != expected_mzis:
+          raise ValueError(f"Expected theta length {expected_mzis}, got {theta.shape[0]}")
+      if phi.shape[0] != expected_mzis:
+          raise ValueError(f"Expected phi length {expected_mzis}, got {phi.shape[0]}")
+      if alpha.shape[0] != expected_mzis:
+          raise ValueError(f"Expected alpha length {expected_mzis}, got {alpha.shape[0]}")
+      if beta.shape[0] != expected_mzis:
+          raise ValueError(f"Expected beta length {expected_mzis}, got {beta.shape[0]}")
+      if d.shape[0] != num_modes:
+          raise ValueError(f"Expected d length {num_modes}, got {d.shape[0]}")
+
+      unitary = jnp.eye(num_modes, dtype=jnp.complex64)
+      idx = 0
+
+      for i in range(num_modes):
+          is_even_layer = (i % 2 == 0)
+          if num_modes % 2 == 0:
+              k = num_modes // 2 if is_even_layer else (num_modes // 2) - 1
+              offset = 0 if is_even_layer else 1
+          else:
+              k = num_modes // 2
+              offset = 0 if is_even_layer else 1
+
+          t = theta[idx : idx + k]
+          p = phi[idx : idx + k]
+          a = alpha[idx : idx + k]
+          b = beta[idx : idx + k]
+          idx += k
+
+          c_a = jnp.cos(jnp.pi / 4 + a)
+          s_a = jnp.sin(jnp.pi / 4 + a)
+          c_b = jnp.cos(jnp.pi / 4 + b)
+          s_b = jnp.sin(jnp.pi / 4 + b)
+
+          exp_t = jnp.exp(1j * t)
+          exp_p = jnp.exp(1j * p)
+          zero = jnp.zeros_like(c_a)
+          one = jnp.ones_like(c_a)
+
+          h_a = jnp.stack([
+              jnp.stack([c_a, 1j * s_a], axis=-1),
+              jnp.stack([1j * s_a, c_a], axis=-1)
+          ], axis=1)
+
+          h_b = jnp.stack([
+              jnp.stack([c_b, 1j * s_b], axis=-1),
+              jnp.stack([1j * s_b, c_b], axis=-1)
+          ], axis=1)
+
+          phi_mat = jnp.stack([
+              jnp.stack([exp_p, zero], axis=-1),
+              jnp.stack([zero, one], axis=-1)
+          ], axis=1)
+
+          theta_mat = jnp.stack([
+              jnp.stack([exp_t, zero], axis=-1),
+              jnp.stack([zero, one], axis=-1)
+          ], axis=1)
+
+          mzi_blocks = h_b @ theta_mat @ h_a @ phi_mat
+          
+          # Extract, update, and replace active rows
+          unitary_active = unitary[offset : offset + 2 * k, :].reshape(k, 2, num_modes)
+          unitary_active = jnp.einsum('kab,kbj->kaj', mzi_blocks, unitary_active)
+          unitary = unitary.at[offset : offset + 2 * k, :].set(unitary_active.reshape(2 * k, num_modes))
+
+      return jnp.exp(1j * d)[:, None] * unitary
 
   @partial(jit, static_argnums = (0, ))
-  def clements_matrix(self, theta, phi, D, alpha, beta) -> jnp.ndarray:
+  def clements_matrix_deprecated(self, theta, phi, D, alpha, beta) -> jnp.ndarray:
     r"""
-    Differentiable mesh network based on the Clements (rectangular) decomposition,
+    DEPRECATED: Differentiable mesh network based on the Clements (rectangular) decomposition,
     to return NxN unitary transformation.
     MZIs are indexed from top to bottom and left to right
 
